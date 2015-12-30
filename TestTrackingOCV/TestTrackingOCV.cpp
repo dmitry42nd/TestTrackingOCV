@@ -14,8 +14,8 @@
 
 void saveAllDepth()
 {
-	std::string depthFld = "C:\\projects\\kkdata\\depth\\";
-	std::string depthDebFld = "C:\\projects\\kkdata\\depthDebugAll\\";
+  std::string depthFld = "E:\\Downloads\\_Study\\DynTrack\\depth\\";
+  std::string depthDebFld = "E:\\Downloads\\_Study\\DynTrack\\depthDebugAll\\";
 	boost::filesystem::path p(depthFld);
 	typedef std::vector<boost::filesystem::path> vec;             // store paths,
 	vec v;                                // so we can sort them later
@@ -52,10 +52,10 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 void saveDepthData()
 {
 
-	std::string dirName = "C:\\projects\\kkdata\\fullTrack\\rgb\\";
-	std::string outDirName = "C:\\projects\\kkdata\\out\\";
-	std::string depthFld = "C:\\projects\\kkdata\\depth\\";
-	std::string depthDebFld = "C:\\projects\\kkdata\\depthDebug\\";
+  std::string dirName = "E:\\Downloads\\_Study\\DynTrack\\fullTrack\\rgb\\";
+  std::string outDirName = "E:\\Downloads\\_Study\\DynTrack\\out\\";
+  std::string depthFld = "E:\\Downloads\\_Study\\DynTrack\\depth\\";
+  std::string depthDebFld = "E:\\Downloads\\_Study\\DynTrack\\depthDebug\\";
 	boost::filesystem::path p(depthFld);
 	boost::filesystem::path p2(dirName);
 	typedef std::vector<boost::filesystem::path> vec;             // store paths,
@@ -98,7 +98,7 @@ void saveDepthData()
 		dInd++;
 	}
 
-	std::string folder = "C:\\projects\\kkdata\\tracks_6_11\\key_tracks\\";
+  std::string folder = "E:\\Downloads\\_Study\\DynTrack\\tracks_6_11\\key_tracks\\";
 	for (int i = 0; i < 1447; i++)
 	{
 		std::string fName = folder + "t" + std::to_string(i) + ".txt";
@@ -128,7 +128,7 @@ void saveDepthData()
 				cv::Mat depthImg = cv::imread(v[dInd].string(), CV_LOAD_IMAGE_ANYDEPTH);				
 				if (pt.x > 0 && pt.y > 0 && pt.x < depthImg.cols && pt.y < depthImg.rows)
 				{
-					depthVal = (int)depthImg.at<ushort>(round(pt.y), round(pt.x));
+					depthVal = (int)depthImg.at<ushort>(floor(pt.y), floor(pt.x));
 					depthVal /= 5000.0;
 				}
 			}
@@ -145,11 +145,11 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	//saveAllDepth();
 
-	std::string dirName = "C:\\projects\\kkdata\\fullTrack\\rgb\\";
-	std::string outDirName = "c:\\projects\\debug_tracking\\out\\";
-	std::string outCleanDirName = "C:\\projects\\kkdata\\outClean\\";
-	std::string depthFld = "C:\\projects\\kkdata\\depth\\";
-	std::string depthDebFld = "C:\\projects\\kkdata\\depthDebug\\";
+  std::string dirName = "E:\\Downloads\\_Study\\DynTrack\\fullTrack\\rgb\\";
+  std::string outDirName = "E:\\Downloads\\_Study\\DynTrack\\debug_tracking\\out\\";
+  std::string outCleanDirName = "E:\\Downloads\\_Study\\DynTrack\\outClean\\";
+  std::string depthFld = "E:\\Downloads\\_Study\\DynTrack\\depth\\";
+  std::string depthDebFld = "E:\\Downloads\\_Study\\DynTrack\\depthDebug\\";
 	boost::filesystem::path p(depthFld);
 	boost::filesystem::path p2(dirName);
 	typedef std::vector<boost::filesystem::path> vec;             // store paths,
@@ -212,8 +212,9 @@ int _tmain(int argc, _TCHAR* argv[])
 		std::cout << dInd << " " << tracker.lostTracks.size() << std::endl;
 		dInd++;
 	}
-	std::string pathToSave = "C:\\projects\\kkdata\\trackLogFull\\";
+  std::string pathToSave = "E:\\Downloads\\_Study\\DynTrack\\trackLogFull\\";
 	tracker.saveAllTracks(pathToSave);
+
 	return 0;
 }
 

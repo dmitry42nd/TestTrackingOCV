@@ -108,10 +108,11 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 	std::vector<cv::KeyPoint> keyPts;
 	std::cout << " detecting.. " << indX << " " << indY << std::endl;
 	factDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
+  
 	for (int i = 0; i < keyPts.size(); i++)
 	{
 		//std::cout << "init depth read " << std::endl;
-		int px, py;
+		int px = 0, py = 0;
 
 		cv::Point2f pt = fillDepthPt(keyPts[i].pt, ccx, ccy, cfx, cfy, dcx, dcy, dfx, dfy);
 		roundCoords(px, py, pt, m_nextImg);
