@@ -106,54 +106,22 @@ cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<Trac
 	return boolRes;
 }
 
-#if 0
 std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts) {
-  std::vector<cv::KeyPoint> keyPtsNew;
-  int curCx = -1;
-  int curCy = -1;
-
-  for (int i = 0; i < keyPts.size(); i++) {
-    cv::KeyPoint curKeyPoint = keyPts[i];
-    int cx = curKeyPoint.pt.x / wx;
-    int cy = curKeyPoint.pt.y / wy;
-    
-    if (cx > curCx || cy > curCy) {
-      curCx = cx;
-      curCy = cy;
-      keyPtsNew.push_back(curKeyPoint);
-    }
-    
-    //get best by response point 
-    if (keyPtsNew[keyPtsNew.size() - 1].response < curKeyPoint.response) {
-      keyPtsNew[keyPtsNew.size() - 1] = curKeyPoint;
-    }
-  }
-
-  return keyPtsNew;
-}
-#endif
-
-std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts) {
-  std::map<int, cv::KeyPoint> keyPtsMap;
-  int width  = 640/wx;
-  int height = 480/wy;
+  typedef std::pair<int, int> Coords;
+  std::map<Coords, cv::KeyPoint> keyPtsMap;
   
-  int curCx = 0;
-  int curCy = 0;
+  for (std::vector<cv::KeyPoint>::iterator keyPt = keyPts.begin(); keyPt != keyPts.end(); ++keyPt) {
+    int cx = keyPt->pt.x / wx;
+    int cy = keyPt->pt.y / wy;
 
-  for (int i = 0; i < keyPts.size(); i++) {
-    cv::KeyPoint curKeyPoint = keyPts[i];
-    int cx = curKeyPoint.pt.x / wx;
-    int cy = curKeyPoint.pt.y / wy;
-
-    if (curKeyPoint.response > keyPtsMap[cy*width+cx].response) {
-      keyPtsMap[cy*width + cx] = curKeyPoint;
+    if (keyPt->response > keyPtsMap[Coords(cx, cy)].response) {
+      keyPtsMap[Coords(cx, cy)] = *keyPt;
     }
   }
 
   //trun map to vector
   std::vector<cv::KeyPoint> keyPtsNew;
-  for (std::map<int, cv::KeyPoint>::iterator it = keyPtsMap.begin(); it != keyPtsMap.end(); ++it) {
+  for (std::map<Coords, cv::KeyPoint>::iterator it = keyPtsMap.begin(); it != keyPtsMap.end(); ++it) {
     keyPtsNew.push_back(it->second);
   }
 
@@ -171,7 +139,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 		cv::circle(outputFrame, keyPts[i].pt, 3, cv::Scalar(255, 0, 0));
 	}
 
-#if 0 //breaks points (x,y) order!
+#if 1
   //get 80% of best by reduction points
   cv::KeyPointsFilter::retainBest(keyPts, keyPts.size() * 8 / 10); 
   for (int i = 0; i < keyPts.size(); i++)
@@ -180,8 +148,8 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
   }
 #endif
 
-  //TODO: magic numbers 8, 8
-  std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(8, 8, keyPts);
+  //TODO: magic numbers 16, 16
+  std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(16, 16, keyPts);
   int repProc = keyPtsFiltered.size() * 100 / keyPts.size();
   std::cout << "key point reduction: " << repProc << " % " << keyPts.size() << ":" << keyPtsFiltered.size() << "\n";
 
