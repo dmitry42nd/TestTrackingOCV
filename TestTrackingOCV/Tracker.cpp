@@ -1,6 +1,9 @@
 #include "Tracker.h"
 #include <iostream>
 #include <fstream>
+#include <map>
+
+#include "boost/foreach.hpp"
 #include "opencv2/video/tracking.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
@@ -8,7 +11,7 @@ Tracker::Tracker()
 {
 	orb = new cv::ORB(1000, 1.2, 8, 51);
 	m_orbMatcher = new cv::BFMatcher(cv::NORM_HAMMING);
-	factDetector = new cv::FastFeatureDetector(10);
+	fastDetector = new cv::FastFeatureDetector(10);
 	wx = 2;
 	wy = 2;
 
@@ -103,28 +106,100 @@ cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<Trac
 	return boolRes;
 }
 
+#if 0
+std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts) {
+  std::vector<cv::KeyPoint> keyPtsNew;
+  int curCx = -1;
+  int curCy = -1;
+
+  for (int i = 0; i < keyPts.size(); i++) {
+    cv::KeyPoint curKeyPoint = keyPts[i];
+    int cx = curKeyPoint.pt.x / wx;
+    int cy = curKeyPoint.pt.y / wy;
+    
+    if (cx > curCx || cy > curCy) {
+      curCx = cx;
+      curCy = cy;
+      keyPtsNew.push_back(curKeyPoint);
+    }
+    
+    //get best by response point 
+    if (keyPtsNew[keyPtsNew.size() - 1].response < curKeyPoint.response) {
+      keyPtsNew[keyPtsNew.size() - 1] = curKeyPoint;
+    }
+  }
+
+  return keyPtsNew;
+}
+#endif
+
+std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts) {
+  std::map<int, cv::KeyPoint> keyPtsMap;
+  int width  = 640/wx;
+  int height = 480/wy;
+  
+  int curCx = 0;
+  int curCy = 0;
+
+  for (int i = 0; i < keyPts.size(); i++) {
+    cv::KeyPoint curKeyPoint = keyPts[i];
+    int cx = curKeyPoint.pt.x / wx;
+    int cy = curKeyPoint.pt.y / wy;
+
+    if (curKeyPoint.response > keyPtsMap[cy*width+cx].response) {
+      keyPtsMap[cy*width + cx] = curKeyPoint;
+    }
+  }
+
+  //trun map to vector
+  std::vector<cv::KeyPoint> keyPtsNew;
+  for (std::map<int, cv::KeyPoint>::iterator it = keyPtsMap.begin(); it != keyPtsMap.end(); ++it) {
+    keyPtsNew.push_back(it->second);
+  }
+
+  return keyPtsNew;
+}
+
 void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd)
 {
 	std::vector<cv::KeyPoint> keyPts;
 	std::cout << " detecting.. " << indX << " " << indY << std::endl;
-	factDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
-  
+	fastDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
+  //draw all FAST points
 	for (int i = 0; i < keyPts.size(); i++)
 	{
-		//std::cout << "init depth read " << std::endl;
-		int px = 0, py = 0;
-
-		cv::Point2f pt = fillDepthPt(keyPts[i].pt, ccx, ccy, cfx, cfy, dcx, dcy, dfx, dfy);
-		roundCoords(px, py, pt, m_nextImg);
-		double depthVal = (int)depthImg.at<ushort>(py, px);
-		depthVal /= 5000.0;
-		TrackedPoint *tpt = new TrackedPoint(keyPts[i].pt, frameInd, 0, keyPts[i], cv::Mat(), depthVal);
-		Track* newTrack = new Track();
-		newTrack->history.push_back(tpt);
-		newTrack->bestCandidate = tpt;
-		curPoints.push_back(newTrack);
 		cv::circle(outputFrame, keyPts[i].pt, 3, cv::Scalar(255, 0, 0));
 	}
+
+#if 0 //breaks points (x,y) order!
+  //get 80% of best by reduction points
+  cv::KeyPointsFilter::retainBest(keyPts, keyPts.size() * 8 / 10); 
+  for (int i = 0; i < keyPts.size(); i++)
+  {
+    cv::circle(outputFrame, keyPts[i].pt, 3, cv::Scalar(0, 255, 255));
+  }
+#endif
+
+  //TODO: magic numbers 8, 8
+  std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(8, 8, keyPts);
+  int repProc = keyPtsFiltered.size() * 100 / keyPts.size();
+  std::cout << "key point reduction: " << repProc << " % " << keyPts.size() << ":" << keyPtsFiltered.size() << "\n";
+
+  for (int i = 0; i < keyPtsFiltered.size(); i++)
+  {
+    int px = 0, py = 0;
+
+    cv::Point2f pt = fillDepthPt(keyPtsFiltered[i].pt, ccx, ccy, cfx, cfy, dcx, dcy, dfx, dfy);
+    roundCoords(px, py, pt, m_nextImg);
+    double depthVal = (int)depthImg.at<ushort>(py, px);
+    depthVal /= 5000.0;
+    TrackedPoint *tpt = new TrackedPoint(keyPtsFiltered[i].pt, frameInd, 0, keyPtsFiltered[i], cv::Mat(), depthVal);
+    Track* newTrack = new Track();
+    newTrack->history.push_back(tpt);
+    newTrack->bestCandidate = tpt;
+    curPoints.push_back(newTrack);
+    cv::circle(outputFrame, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
+  }
 
 }
 

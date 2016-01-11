@@ -35,7 +35,7 @@ public:
 	std::vector<std::vector<cv::Mat>> detMasks;
 	cv::Size imSize;
 
-	cv::FastFeatureDetector *factDetector;
+	cv::FastFeatureDetector *fastDetector;
 
 	double dfx = 567.6;
 	double dfy = 570.2;
