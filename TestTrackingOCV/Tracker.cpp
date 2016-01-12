@@ -55,8 +55,8 @@ Tracker::~Tracker()
 
 void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const & keyPt, cv::Mat const & desc)
 {
-	Track *newTrack = new Track();
-	newTrack->history.push_back(new TrackedPoint(point, frameCnt, 0, keyPt, desc));
+  Track *newTrack = new Track();
+	newTrack->history.push_back(std::make_shared<TrackedPoint>(point, frameCnt, 0, keyPt, desc));
 	newTrack->bestCandidate = newTrack->history[0];
 	curPoints.push_back(newTrack);
 }
@@ -161,7 +161,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
     roundCoords(px, py, pt, m_nextImg);
     double depthVal = (int)depthImg.at<ushort>(py, px);
     depthVal /= 5000.0;
-    TrackedPoint *tpt = new TrackedPoint(keyPtsFiltered[i].pt, frameInd, 0, keyPtsFiltered[i], cv::Mat(), depthVal);
+    std::shared_ptr<TrackedPoint> tpt = std::make_shared<TrackedPoint>(keyPtsFiltered[i].pt, frameInd, 0, keyPtsFiltered[i], cv::Mat(), depthVal);
     Track* newTrack = new Track();
     newTrack->history.push_back(tpt);
     newTrack->bestCandidate = tpt;
@@ -212,7 +212,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 					depthVal = (int)depthImg.at<ushort>(py, px);
 					depthVal /= 5000.0;
 				}
-				prevPoints[i]->bestCandidate = new TrackedPoint(nextCorners[i], frameInd, 0, cv::KeyPoint(), cv::Mat(), depthVal);
+				prevPoints[i]->bestCandidate = std::make_shared<TrackedPoint>(nextCorners[i], frameInd, 0, cv::KeyPoint(), cv::Mat(), depthVal);
 				prevPoints[i]->history.push_back(prevPoints[i]->bestCandidate);
 				curPoints.push_back(prevPoints[i]);
 
@@ -288,7 +288,7 @@ void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 			//std::cout << foundTrack->history.size() << std::endl;
 			if (foundTrack->bestCandidate->frameId < frameInd || foundTrack->bestCandidate->matchScore > matches[i][0].distance)
 			{
-				foundTrack->bestCandidate = new TrackedPoint(nextPt, frameInd, matches[i][0].distance, m_nextKeypoints[matches[i][0].queryIdx], m_nextDescriptors.row(i));
+				foundTrack->bestCandidate = std::make_shared<TrackedPoint>(nextPt, frameInd, matches[i][0].distance, m_nextKeypoints[matches[i][0].queryIdx], m_nextDescriptors.row(i));
 			}						
 		}
 		
