@@ -1,12 +1,12 @@
 #pragma once
 #include <vector>
-#include "boost/ptr_container/ptr_vector.hpp"
+#include <memory>
 #include "TrackedPoint.h"
+
 class Track
 {
 public:
-	Track();
-	~Track();
+  Track();
 
   std::vector<std::shared_ptr<TrackedPoint>> history;
   std::shared_ptr<TrackedPoint> bestCandidate;

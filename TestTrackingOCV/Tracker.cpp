@@ -48,14 +48,9 @@ Tracker::Tracker()
 
 }
 
-
-Tracker::~Tracker()
-{
-}
-
 void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const & keyPt, cv::Mat const & desc)
 {
-  Track *newTrack = new Track();
+  std::shared_ptr<Track> newTrack(std::make_shared<Track>());
 	newTrack->history.push_back(std::make_shared<TrackedPoint>(point, frameCnt, 0, keyPt, desc));
 	newTrack->bestCandidate = newTrack->history[0];
 	curPoints.push_back(newTrack);
@@ -81,7 +76,7 @@ cv::Point2f fillDepthPt(cv::Point2f& ptIm, double ccx, double ccy, double cfx, d
 	return pt;
 }
 
-cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<Track*> &curTracks)
+cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks)
 {
 	cv::Mat res = cv::Mat::zeros(wy, wx, CV_32F);
 	int sx = imSize.width / wx;
@@ -141,7 +136,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 
 #if 1
   //get 80% of best by reduction points
-  cv::KeyPointsFilter::retainBest(keyPts, keyPts.size() * 8 / 10); 
+  cv::KeyPointsFilter::retainBest(keyPts, keyPts.size() * 6 / 10); 
   for (int i = 0; i < keyPts.size(); i++)
   {
     cv::circle(outputFrame, keyPts[i].pt, 3, cv::Scalar(0, 255, 255));
@@ -161,8 +156,8 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
     roundCoords(px, py, pt, m_nextImg);
     double depthVal = (int)depthImg.at<ushort>(py, px);
     depthVal /= 5000.0;
-    std::shared_ptr<TrackedPoint> tpt = std::make_shared<TrackedPoint>(keyPtsFiltered[i].pt, frameInd, 0, keyPtsFiltered[i], cv::Mat(), depthVal);
-    Track* newTrack = new Track();
+    std::shared_ptr<TrackedPoint> tpt(std::make_shared<TrackedPoint>(keyPtsFiltered[i].pt, frameInd, 0, keyPtsFiltered[i], cv::Mat(), depthVal));
+    std::shared_ptr<Track> newTrack(std::make_shared<Track>());
     newTrack->history.push_back(tpt);
     newTrack->bestCandidate = tpt;
     curPoints.push_back(newTrack);
@@ -173,13 +168,11 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg)
 {	
-
 	curPoints.clear();
 	cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
 	if (prevPoints.size() > 0)
 	{		
 		std::vector<cv::Point2f> prevCorners;
-		//for (int i = 0; i < prevPoints.size(); i++)
     for(auto i : prevPoints)
 		{
 			auto hLen = i->history.size();
@@ -252,10 +245,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
 void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd)
 {
-
-	
 	orb->detect(m_nextImg, m_nextKeypoints);
-
 	orb->compute(m_nextImg, m_nextKeypoints, m_nextDescriptors);
 
 	//std::cout << m_nextKeypoints.size() << std::endl;
@@ -284,7 +274,7 @@ void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 			cv::circle(outputFrame, nextPt, 3, cv::Scalar(0, 250, 0), -1);
 			
 
-			Track* foundTrack = prevPoints[matches[i][0].trainIdx];
+			std::shared_ptr<Track> foundTrack = prevPoints[matches[i][0].trainIdx];
 			//std::cout << foundTrack->history.size() << std::endl;
 			if (foundTrack->bestCandidate->frameId < frameInd || foundTrack->bestCandidate->matchScore > matches[i][0].distance)
 			{
@@ -340,7 +330,7 @@ void Tracker::saveAllTracks(std::string& pathToSaveFolder)
 	for (int i = 0; i < lostTracks.size(); i++)
 	{
 		std::ofstream outTrackSave(pathToSaveFolder + std::to_string(i) + ".txt");
-		Track* curTrack = lostTracks[i];
+		std::shared_ptr<Track> curTrack = lostTracks[i];
 		for (int hInd = 0; hInd < curTrack->history.size(); hInd++)
 		{
 			outTrackSave << curTrack->history[hInd]->frameId << " " << curTrack->history[hInd]->location.x << " " << curTrack->history[hInd]->location.y << " " << curTrack->history[hInd]->depth << std::endl;

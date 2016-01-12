@@ -1,6 +1,6 @@
 // TestTrackingOCV.cpp : Defines the entry point for the console application.
 //
-
+#include <iostream>
 #include "stdafx.h"
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
@@ -9,8 +9,6 @@
 #include "boost/filesystem.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
-
-#include <iostream>
 
 void saveAllDepth()
 {
@@ -152,8 +150,8 @@ int main()
   std::string depthDebFld = "..\\..\\depthDebug\\";
 	boost::filesystem::path p(depthFld);
 	boost::filesystem::path p2(dirName);
-	typedef std::vector<boost::filesystem::path> vec;             // store paths,
-	vec v, vRgb;                                // so we can sort them later
+	typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
+	vec v, vRgb;
 	copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
 	copy(boost::filesystem::directory_iterator(p2), boost::filesystem::directory_iterator(), std::back_inserter(vRgb));
 	sort(v.begin(), v.end());

@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+
 #include "opencv2/features2d/features2d.hpp"
 #include "Track.h"
 
@@ -6,13 +8,12 @@ class Tracker
 {
 public:
 	Tracker();
-	~Tracker();
 
 	void trackWithOrb(cv::Mat& nextImg, cv::Mat& outputFrame, int frameInd);
 	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc);
 	void saveAllTracks(std::string& pathToSaveFolder);
 	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);	
-	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<Track*> &curTracks);
+	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
 	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
 	//cv::Mat calcGridPointDistribution();
 
@@ -25,9 +26,9 @@ public:
 	cv::BFMatcher *m_orbMatcher;
 	cv::ORB *orb;
 
-	std::vector<Track*> prevPoints, curPoints;
+	std::vector<std::shared_ptr<Track>> prevPoints, curPoints;
 
-	std::vector<Track*> lostTracks;	
+	std::vector<std::shared_ptr<Track>> lostTracks;
 
 	int kltPtThr = 200;
 	cv::Mat prevImg;
