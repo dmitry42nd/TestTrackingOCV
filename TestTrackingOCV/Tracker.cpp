@@ -53,7 +53,7 @@ Tracker::~Tracker()
 {
 }
 
-void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint keyPt, cv::Mat &desc)
+void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const & keyPt, cv::Mat const & desc)
 {
 	Track *newTrack = new Track();
 	newTrack->history.push_back(new TrackedPoint(point, frameCnt, 0, keyPt, desc));
@@ -110,19 +110,19 @@ std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>
   typedef std::pair<int, int> Coords;
   std::map<Coords, cv::KeyPoint> keyPtsMap;
   
-  for (std::vector<cv::KeyPoint>::iterator keyPt = keyPts.begin(); keyPt != keyPts.end(); ++keyPt) {
-    int cx = keyPt->pt.x / wx;
-    int cy = keyPt->pt.y / wy;
+  for (auto const& keyPt : keyPts) {
+    int cx = keyPt.pt.x / wx;
+    int cy = keyPt.pt.y / wy;
 
-    if (keyPt->response > keyPtsMap[Coords(cx, cy)].response) {
-      keyPtsMap[Coords(cx, cy)] = *keyPt;
+    if (keyPt.response > keyPtsMap[Coords(cx, cy)].response) {
+      keyPtsMap[Coords(cx, cy)] = keyPt;
     }
   }
 
   //trun map to vector
   std::vector<cv::KeyPoint> keyPtsNew;
-  for (std::map<Coords, cv::KeyPoint>::iterator it = keyPtsMap.begin(); it != keyPtsMap.end(); ++it) {
-    keyPtsNew.push_back(it->second);
+  for (auto const& keyPt : keyPtsMap) {
+    keyPtsNew.push_back(keyPt.second);
   }
 
   return keyPtsNew;
@@ -150,7 +150,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 
   //TODO: magic numbers 16, 16
   std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(16, 16, keyPts);
-  int repProc = keyPtsFiltered.size() * 100 / keyPts.size();
+  auto repProc = keyPtsFiltered.size() * 100 / keyPts.size();
   std::cout << "key point reduction: " << repProc << " % " << keyPts.size() << ":" << keyPtsFiltered.size() << "\n";
 
   for (int i = 0; i < keyPtsFiltered.size(); i++)
@@ -179,10 +179,11 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 	if (prevPoints.size() > 0)
 	{		
 		std::vector<cv::Point2f> prevCorners;
-		for (int i = 0; i < prevPoints.size(); i++)
+		//for (int i = 0; i < prevPoints.size(); i++)
+    for(auto i : prevPoints)
 		{
-			int hLen = prevPoints[i]->history.size();
-			prevCorners.push_back(prevPoints[i]->history[hLen - 1]->location);
+			auto hLen = i->history.size();
+			prevCorners.push_back(i->history[hLen - 1]->location);
 		}
 		std::vector<cv::Point2f> nextCorners;
 		std::vector<uchar> status;

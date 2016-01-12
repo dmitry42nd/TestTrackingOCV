@@ -41,7 +41,7 @@ void saveAllDepth()
 
 void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 {	
-	int sepInd = fOnly.find(".");
+	auto sepInd = fOnly.find(".");
 	std::string pref = fOnly.substr(0, sepInd);
 	std::string suf = fOnly.substr(sepInd + 1, fOnly.size() - sepInd - 1);
 	prefInt = std::stoi(pref);
@@ -138,7 +138,7 @@ void saveDepthData()
 	}
 }
 
-int _tmain(int argc, _TCHAR* argv[])
+int main()
 {
 	//saveDepthData();
 	//return 0;

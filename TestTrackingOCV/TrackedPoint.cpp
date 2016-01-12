@@ -5,8 +5,3 @@ TrackedPoint::TrackedPoint(cv::Point2f location, int frameId, double score, cv::
 location(location), frameId(frameId), matchScore(score), keyPt(keyPt), desc(desc), depth(depth)
 {
 }
-
-
-TrackedPoint::~TrackedPoint()
-{
-}
