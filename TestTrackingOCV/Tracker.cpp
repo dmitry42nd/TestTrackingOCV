@@ -101,7 +101,7 @@ cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std:
 	return boolRes;
 }
 
-std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts) {
+std::vector<cv::KeyPoint> Tracker::filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts) {
   typedef std::pair<int, int> Coords;
   std::map<Coords, cv::KeyPoint> keyPtsMap;
   
@@ -114,7 +114,7 @@ std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>
     }
   }
 
-  //trun map to vector
+  //copy map to vector as needed
   std::vector<cv::KeyPoint> keyPtsNew;
   for (auto const& keyPt : keyPtsMap) {
     keyPtsNew.push_back(keyPt.second);
@@ -128,7 +128,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 	std::vector<cv::KeyPoint> keyPts;
 	std::cout << " detecting.. " << indX << " " << indY << std::endl;
 	fastDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
-  //draw all FAST points
+  //draw all FAST points (blue)
 	for (int i = 0; i < keyPts.size(); i++)
 	{
 		cv::circle(outputFrame, keyPts[i].pt, 3, cv::Scalar(255, 0, 0));
@@ -137,6 +137,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 #if 1
   //get 80% of best by reduction points
   cv::KeyPointsFilter::retainBest(keyPts, keyPts.size() * 6 / 10); 
+  //draw all filtered points (yellow)
   for (int i = 0; i < keyPts.size(); i++)
   {
     cv::circle(outputFrame, keyPts[i].pt, 3, cv::Scalar(0, 255, 255));
@@ -148,6 +149,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
   auto repProc = keyPtsFiltered.size() * 100 / keyPts.size();
   std::cout << "key point reduction: " << repProc << " % " << keyPts.size() << ":" << keyPtsFiltered.size() << "\n";
 
+  //draw final filtered points (red) and some stuff
   for (int i = 0; i < keyPtsFiltered.size(); i++)
   {
     int px = 0, py = 0;

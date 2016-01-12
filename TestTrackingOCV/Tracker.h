@@ -50,5 +50,8 @@ public:
 
 	double trackThr = 70;
 
+protected:
+  std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
+
 };
 
