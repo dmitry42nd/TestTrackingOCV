@@ -10,7 +10,7 @@ public:
 	Tracker();
 
 	void trackWithOrb(cv::Mat& nextImg, cv::Mat& outputFrame, int frameInd);
-	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc);
+	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
 	void saveAllTracks(std::string& pathToSaveFolder);
 	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);	
 	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);

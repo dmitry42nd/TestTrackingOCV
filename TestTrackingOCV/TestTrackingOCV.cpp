@@ -204,6 +204,7 @@ int main()
 			cv::imwrite(fNameOutClean, outputImg);
 
 			tracker.trackWithKLT(img, outputImg, dInd, depthImg);
+      //tracker.trackWithOrb(img, outputImg, dInd);
 			std::string fNameOut = outDirName + std::to_string(dInd) + ".bmp";
 			cv::imwrite(fNameOut, outputImg);
 		}

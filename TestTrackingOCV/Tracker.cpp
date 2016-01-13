@@ -48,10 +48,10 @@ Tracker::Tracker()
 
 }
 
-void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const & keyPt, cv::Mat const & desc)
+void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const & keyPt, cv::Mat const & desc, double depth)
 {
   std::shared_ptr<Track> newTrack(std::make_shared<Track>());
-	newTrack->history.push_back(std::make_shared<TrackedPoint>(point, frameCnt, 0, keyPt, desc));
+	newTrack->history.push_back(std::make_shared<TrackedPoint>(point, frameCnt, 0, keyPt, desc, depth));
 	newTrack->bestCandidate = newTrack->history[0];
 	curPoints.push_back(newTrack);
 }
@@ -78,9 +78,11 @@ cv::Point2f fillDepthPt(cv::Point2f& ptIm, double ccx, double ccy, double cfx, d
 
 cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks)
 {
+  //num of points in each quadrant
 	cv::Mat res = cv::Mat::zeros(wy, wx, CV_32F);
 	int sx = imSize.width / wx;
 	int sy = imSize.height/ wy;
+  //count points in each quadrant
 	for (int i = 0; i < curTracks.size(); i++)
 	{
 		int resX = curTracks[i]->bestCandidate->location.x / sx;
@@ -88,6 +90,7 @@ cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std:
 		res.at<float>(resY, resX) = res.at<float>(resY, resX) + 1;
 	}
 	cv::Mat boolRes = cv::Mat::zeros(wy, wx, CV_8U);
+  //check if less than threshold ptNum
 	for (int i = 0; i < wx; i++)
 	{
 		for (int j = 0; j < wy; j++)
@@ -128,6 +131,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 	std::vector<cv::KeyPoint> keyPts;
 	std::cout << " detecting.. " << indX << " " << indY << std::endl;
 	fastDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
+  int keyPtsSize = keyPts.size();
   //draw all FAST points (blue)
 	for (int i = 0; i < keyPts.size(); i++)
 	{
@@ -146,8 +150,8 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 
   //TODO: magic numbers 16, 16
   std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(16, 16, keyPts);
-  auto repProc = keyPtsFiltered.size() * 100 / keyPts.size();
-  std::cout << "key point reduction: " << repProc << " % " << keyPts.size() << ":" << keyPtsFiltered.size() << "\n";
+  auto repProc = keyPtsFiltered.size() * 100 / keyPtsSize;
+  std::cout << "key point reduction: " << repProc << " % " << keyPtsSize << ":" << keyPtsFiltered.size() << "\n";
 
   //draw final filtered points (red) and some stuff
   for (int i = 0; i < keyPtsFiltered.size(); i++)
@@ -156,16 +160,11 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 
     cv::Point2f pt = fillDepthPt(keyPtsFiltered[i].pt, ccx, ccy, cfx, cfy, dcx, dcy, dfx, dfy);
     roundCoords(px, py, pt, m_nextImg);
-    double depthVal = (int)depthImg.at<ushort>(py, px);
-    depthVal /= 5000.0;
-    std::shared_ptr<TrackedPoint> tpt(std::make_shared<TrackedPoint>(keyPtsFiltered[i].pt, frameInd, 0, keyPtsFiltered[i], cv::Mat(), depthVal));
-    std::shared_ptr<Track> newTrack(std::make_shared<Track>());
-    newTrack->history.push_back(tpt);
-    newTrack->bestCandidate = tpt;
-    curPoints.push_back(newTrack);
+    double depthVal = (int)(depthImg.at<ushort>(py, px) / 5000.0);
+    createNewTrack(keyPtsFiltered[i].pt, frameInd, keyPtsFiltered[i], cv::Mat(), depthVal);
+
     cv::circle(outputFrame, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
   }
-
 }
 
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg)
@@ -175,18 +174,18 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 	if (prevPoints.size() > 0)
 	{		
 		std::vector<cv::Point2f> prevCorners;
-    for(auto i : prevPoints)
+    for(auto p : prevPoints)
 		{
-			auto hLen = i->history.size();
-			prevCorners.push_back(i->history[hLen - 1]->location);
+			auto hLen = p->history.size();
+			prevCorners.push_back(p->history[hLen - 1]->location);
 		}
 		std::vector<cv::Point2f> nextCorners;
 		std::vector<uchar> status;
 		std::vector<float> err;
 		double minEigThreshold = 1e-2;
 		cv::calcOpticalFlowPyrLK(prevImg, m_nextImg, prevCorners, nextCorners, status, err,
-			cv::Size(11, 11), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
-			cv::OPTFLOW_LK_GET_MIN_EIGENVALS, minEigThreshold);
+			                       cv::Size(11, 11), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+			                       cv::OPTFLOW_LK_GET_MIN_EIGENVALS, minEigThreshold);
 		for (int i = 0; i < prevPoints.size(); i++)
 		{
 			cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
