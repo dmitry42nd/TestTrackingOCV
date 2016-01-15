@@ -213,11 +213,6 @@ int main()
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
   printf("Total time taken: %.2fs\n", totalTime);
 
-  auto tAvgPerFrame = 0;
-  for (auto t : tPerFrame) {
-    tAvgPerFrame += t;
-  }
-  tAvgPerFrame /= tPerFrame.size();
   printf("Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
   printf("Average fps: %.2fs\n", vRgb.size() / totalTime);
 
