@@ -1,6 +1,4 @@
 #pragma once
-#include <memory>
-#include "opencv2/core/core.hpp"
 
 struct CameraPose {
   cv::Mat R;

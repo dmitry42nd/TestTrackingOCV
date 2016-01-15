@@ -1,7 +1,4 @@
 #pragma once
-#include <memory>
-
-#include "opencv2/features2d/features2d.hpp"
 #include "Track.h"
 
 class Tracker

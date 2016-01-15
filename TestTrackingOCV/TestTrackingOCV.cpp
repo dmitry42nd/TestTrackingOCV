@@ -1,14 +1,8 @@
 // TestTrackingOCV.cpp : Defines the entry point for the console application.
 //
-#include <iostream>
 #include "stdafx.h"
-#include "opencv2/core/core.hpp"
-#include "opencv2/features2d/features2d.hpp"
-#include "Tracker.h"
 
-#include "boost/filesystem.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
+#include "Tracker.h"
 
 void saveAllDepth()
 {

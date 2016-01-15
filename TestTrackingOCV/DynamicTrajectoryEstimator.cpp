@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "DynamicTrajectoryEstimator.h"
 
 DynamicTrajectoryEstimator::DynamicTrajectoryEstimator()

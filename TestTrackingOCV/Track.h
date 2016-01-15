@@ -1,6 +1,7 @@
 #pragma once
-#include <vector>
-#include <memory>
+
+#include "stdafx.h"
+
 #include "TrackedPoint.h"
 
 class Track

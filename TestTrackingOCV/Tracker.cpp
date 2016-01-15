@@ -1,11 +1,8 @@
-#include "Tracker.h"
-#include <iostream>
-#include <fstream>
-#include <map>
+#include "stdafx.h"
 
-#include "boost/foreach.hpp"
+#include "Tracker.h"
+
 #include "opencv2/video/tracking.hpp"
-#include "opencv2/highgui/highgui.hpp"
 
 Tracker::Tracker()
 {
@@ -56,7 +53,7 @@ void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const
 	curPoints.push_back(newTrack);
 }
 
-void roundCoords(int &px, int &py, cv::Point2f &pt, cv::Mat &img)
+void roundCoords(int &px, int &py, cv::Point2f const& pt, cv::Mat const& img)
 {
 	px = round(pt.x);
 	px = std::min({ img.cols - 1, px });
