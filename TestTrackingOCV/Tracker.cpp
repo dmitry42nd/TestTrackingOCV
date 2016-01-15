@@ -186,12 +186,12 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 		cv::calcOpticalFlowPyrLK(prevImg, m_nextImg, prevCorners, nextCorners, status, err,
 			                       cv::Size(11, 11), 3, cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
 			                       cv::OPTFLOW_LK_GET_MIN_EIGENVALS, minEigThreshold);
-		for (int i = 0; i < prevPoints.size(); i++)
+		for (size_t i = 0; i < prevPoints.size(); i++)
 		{
 			cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
 			double trackDist = norm(err);
-			if (status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
-				nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows && trackDist < trackThr)
+			if (trackDist < trackThr && status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
+				nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows)
 			{						
 				//std::cout << "track depth read " << round(nextCorners[i].y) << " " << round(nextCorners[i].x) << std::endl;
 				//std::cout << nextCorners[i] << std::endl;

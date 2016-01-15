@@ -1,6 +1,8 @@
 #pragma once
+#include <memory>
+#include "opencv2/core/core.hpp"
 
-struct CameraPose{
+struct CameraPose {
   cv::Mat R;
   cv::Mat t;
 };
