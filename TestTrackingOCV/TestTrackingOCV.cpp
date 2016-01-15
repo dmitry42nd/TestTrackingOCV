@@ -1,7 +1,7 @@
 // TestTrackingOCV.cpp : Defines the entry point for the console application.
 //
 #include "stdafx.h"
-
+#include <time.h>
 #include "Tracker.h"
 
 void saveAllDepth()
@@ -132,6 +132,7 @@ void saveDepthData()
 
 int main()
 {
+  clock_t tStart = clock();
 	//saveDepthData();
 	//return 0;
 
@@ -152,21 +153,22 @@ int main()
 	sort(vRgb.begin(), vRgb.end());
 	int dInd = 0;
 	while (!boost::filesystem::is_regular_file(vRgb[dInd]))
-	{
+  {
 		dInd++;
 	}
 	std::cout << v[dInd] << std::endl;
 	Tracker tracker;
+
 	while (dInd < vRgb.size())
 	{
-		cv::Mat depthImg;
-		
+    cv::Mat depthImg;
+
 		std::string fName = vRgb[dInd].string();
 
 		std::string fNameOnly = vRgb[dInd].filename().string();
 		int prefInt, sufInt;
 		extractNumbers(fNameOnly, prefInt, sufInt);
-		
+
 		int minInd=-1;
 		double minPref=1e100;
 		for (int cInd = 0; cInd < v.size(); cInd++)
@@ -196,7 +198,7 @@ int main()
 
 			std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
 			cv::imwrite(fNameOutClean, outputImg);
-
+      
 			tracker.trackWithKLT(img, outputImg, dInd, depthImg);
       //tracker.trackWithOrb(img, outputImg, dInd);
 			std::string fNameOut = outDirName + std::to_string(dInd) + ".bmp";
@@ -207,6 +209,17 @@ int main()
 	}
   std::string pathToSave = "..\\..\\trackLogFull\\";
 	tracker.saveAllTracks(pathToSave);
+  
+  double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
+  printf("Total time taken: %.2fs\n", totalTime);
+
+  auto tAvgPerFrame = 0;
+  for (auto t : tPerFrame) {
+    tAvgPerFrame += t;
+  }
+  tAvgPerFrame /= tPerFrame.size();
+  printf("Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
+  printf("Average fps: %.2fs\n", vRgb.size() / totalTime);
 
 	return 0;
 }
