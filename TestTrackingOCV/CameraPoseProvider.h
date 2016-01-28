@@ -11,7 +11,8 @@ public:
   CameraPoseProvider();
   ~CameraPoseProvider();
 
-  void getCurrentPose(CameraPose& cameraPose); //last from history?
+  virtual void getCurrentPose(CameraPose& cameraPose); //last from history?
+  virtual void getPoseForFrame(CameraPose& cameraPose, int frameNum);
 
 protected:
   CameraPose curCameraPose; // or CameraPose*

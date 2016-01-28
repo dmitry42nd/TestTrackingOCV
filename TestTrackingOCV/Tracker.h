@@ -1,10 +1,10 @@
 #pragma once
 #include "Track.h"
-
+#include "TrajectoryArchiver.h"
 class Tracker
 {
 public:
-	Tracker();
+	Tracker(TrajectoryArchiver &trajArchiver);
 
 	void trackWithOrb(cv::Mat& nextImg, cv::Mat& outputFrame, int frameInd);
 	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
@@ -48,7 +48,10 @@ public:
 	double trackThr = 70;
 
 protected:
-  std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
+	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
+
+private:
+	TrajectoryArchiver trajArchiver;
 
 };
 

@@ -4,6 +4,9 @@
 
 #include "Tracker.h"
 
+#include "CameraPoseProviderTXT.h"
+#include "TrajectoryArchiver.h"
+
 void saveAllDepth()
 {
   std::string depthFld = "..\\..\\depth\\";
@@ -137,11 +140,20 @@ int main()
 
 	//saveAllDepth();
 
-  std::string dirName = "..\\..\\fullTrack\\rgb\\";
-  std::string outDirName = "..\\..\\debug_tracking\\out\\";
-  std::string outCleanDirName = "..\\..\\outClean\\";
-  std::string depthFld = "..\\..\\depth\\";
-  std::string depthDebFld = "..\\..\\depthDebug\\";
+	std::string dirName = "..\\..\\fullTrack\\rgb\\";
+	std::string outDirName = "..\\..\\debug_tracking\\out\\";
+	std::string outCleanDirName = "..\\..\\outClean\\";
+	std::string depthFld = "..\\..\\depth\\";
+	std::string depthDebFld = "..\\..\\depthDebug\\";
+
+	std::string pathToTracksFolder = "C:\\projects\\kkdata\\tracks_6_11\\track";
+	CameraPoseProviderTXT poseProvider(pathToTracksFolder);
+	std::string pathToStorage = "C:\\materials\\kk\\TD_Data\\";
+	CameraPose cameraPose;
+	poseProvider.getPoseForFrame(cameraPose, 80);
+	std::cout << cameraPose.R << std::endl;
+	TrajectoryArchiver trajArchiver(poseProvider, pathToStorage);
+
 	boost::filesystem::path p(depthFld);
 	boost::filesystem::path p2(dirName);
 	typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
@@ -156,9 +168,11 @@ int main()
 		dInd++;
 	}
 	std::cout << v[dInd] << std::endl;
-	Tracker tracker;
+	Tracker tracker(trajArchiver);
 	while (dInd < vRgb.size())
 	{
+		poseProvider.setCurrentFrameNumber(dInd);
+
 		cv::Mat depthImg;
 		
 		std::string fName = vRgb[dInd].string();
@@ -205,7 +219,7 @@ int main()
 		std::cout << dInd << " " << tracker.lostTracks.size() << std::endl;
 		dInd++;
 	}
-  std::string pathToSave = "..\\..\\trackLogFull\\";
+	std::string pathToSave = "..\\..\\trackLogFull\\";
 	tracker.saveAllTracks(pathToSave);
 
 	return 0;

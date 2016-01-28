@@ -4,7 +4,7 @@
 
 #include "opencv2/video/tracking.hpp"
 
-Tracker::Tracker()
+Tracker::Tracker(TrajectoryArchiver &trajArchiver) : trajArchiver(trajArchiver)
 {
 	orb = new cv::ORB(1000, 1.2, 8, 51);
 	m_orbMatcher = new cv::BFMatcher(cv::NORM_HAMMING);
@@ -47,7 +47,7 @@ Tracker::Tracker()
 
 void Tracker::createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const & keyPt, cv::Mat const & desc, double depth)
 {
-  std::shared_ptr<Track> newTrack(std::make_shared<Track>());
+	std::shared_ptr<Track> newTrack(std::make_shared<Track>());
 	newTrack->history.push_back(std::make_shared<TrackedPoint>(point, frameCnt, 0, keyPt, desc, depth));
 	newTrack->bestCandidate = newTrack->history[0];
 	curPoints.push_back(newTrack);
@@ -216,6 +216,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 				if (prevPoints[i]->history.size() > 3)
 				{
 					lostTracks.push_back(prevPoints[i]);
+					trajArchiver.archiveTrajectory(prevPoints[i]);
 				}				
 			}
 		}
