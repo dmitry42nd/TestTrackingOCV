@@ -1,7 +1,7 @@
 // TestTrackingOCV.cpp : Defines the entry point for the console application.
 //
 #include "stdafx.h"
-
+#include <time.h>
 #include "Tracker.h"
 
 #include "CameraPoseProviderTXT.h"
@@ -135,20 +135,22 @@ void saveDepthData()
 
 int main()
 {
+  clock_t tStart = clock();
 	//saveDepthData();
 	//return 0;
 
 	//saveAllDepth();
 
-	std::string dirName = "..\\..\\fullTrack\\rgb\\";
-	std::string outDirName = "..\\..\\debug_tracking\\out\\";
-	std::string outCleanDirName = "..\\..\\outClean\\";
-	std::string depthFld = "..\\..\\depth\\";
-	std::string depthDebFld = "..\\..\\depthDebug\\";
+  std::string dirName = "..\\..\\fullTrack\\rgb\\";
+  std::string outDirName = "..\\..\\debug_tracking\\out\\";
+  std::string outCleanDirName = "..\\..\\outClean\\";
+  std::string depthFld = "..\\..\\depth\\";
+  std::string depthDebFld = "..\\..\\depthDebug\\";
 
-	std::string pathToTracksFolder = "C:\\projects\\kkdata\\tracks_6_11\\track";
+	//std::string pathToTracksFolder = "C:\\projects\\kkdata\\tracks_6_11\\track";
+  std::string pathToTracksFolder = "..\\..\\tracks_6_11\\track\\";
 	CameraPoseProviderTXT poseProvider(pathToTracksFolder);
-	std::string pathToStorage = "C:\\materials\\kk\\TD_Data\\";
+	std::string pathToStorage = "..\\..\\TD_Data\\";
 	CameraPose cameraPose;
 	poseProvider.getPoseForFrame(cameraPose, 80);
 	std::cout << cameraPose.R << std::endl;
@@ -211,17 +213,22 @@ int main()
 			std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
 			cv::imwrite(fNameOutClean, outputImg);
 
-			tracker.trackWithKLT(img, outputImg, dInd, depthImg);
-      //tracker.trackWithOrb(img, outputImg, dInd);
+			//tracker.trackWithKLT(img, outputImg, dInd, depthImg);
+      tracker.trackWithOrb(img, outputImg, dInd);
 			std::string fNameOut = outDirName + std::to_string(dInd) + ".bmp";
 			cv::imwrite(fNameOut, outputImg);
 		}
 		std::cout << dInd << " " << tracker.lostTracks.size() << std::endl;
 		dInd++;
 	}
-	std::string pathToSave = "..\\..\\trackLogFull\\";
+  std::string pathToSave = "..\\..\\trackLogFull\\";
 	tracker.saveAllTracks(pathToSave);
+
+  double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
+  printf("Total time taken: %.2fs\n", totalTime);
+
+  printf("Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
+  printf("Average fps: %.2fs\n", vRgb.size() / totalTime);
 
 	return 0;
 }
-

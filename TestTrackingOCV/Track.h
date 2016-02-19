@@ -10,6 +10,6 @@ public:
   Track();
 
   std::vector<std::shared_ptr<TrackedPoint>> history;
-  std::shared_ptr<TrackedPoint> bestCandidate;
+  std::size_t bestCandidate;
 };
 
