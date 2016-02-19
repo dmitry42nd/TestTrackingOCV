@@ -4,7 +4,9 @@
 
 #include "opencv2/video/tracking.hpp"
 
-Tracker::Tracker(TrajectoryArchiver &trajArchiver) : trajArchiver(trajArchiver)
+Tracker::Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize) : 
+  trajArchiver(trajArchiver), 
+  imSize(imSize)
 {
 	orb = new cv::ORB(1000, 1.2, 8, 51);
 	m_orbMatcher = new cv::BFMatcher(cv::NORM_HAMMING);
@@ -13,7 +15,8 @@ Tracker::Tracker(TrajectoryArchiver &trajArchiver) : trajArchiver(trajArchiver)
 	wx = 2;
 	wy = 2;
 
-	imSize = cv::Size(640, 480);
+	//imSize = cv::Size(640, 480);
+  //imSize = cv::Size(640, 360);
 	for (int j = 0; j < wy; j++)
 	{
 		detMasks.push_back(std::vector<cv::Mat>());
@@ -132,6 +135,8 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 	std::cout << " detecting.. " << indX << " " << indY << std::endl;
 	fastDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
   int keyPtsSize = keyPts.size();
+
+  if(keyPtsSize > 0) {
   //draw all FAST points (blue)
   //for (int i = 0; i < keyPts.size(); i++)
   for (auto const& kp: keyPts) {
@@ -149,19 +154,21 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 
   //TODO: magic numbers 16, 16
   std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(16, 16, keyPts);
-  auto repProc = keyPtsFiltered.size() * 100 / keyPtsSize;
-  std::cout << "key point reduction: " << repProc << " % " << keyPtsSize << ":" << keyPtsFiltered.size() << "\n";
+  
+    auto repProc = keyPtsFiltered.size() * 100 / keyPtsSize;
+    std::cout << "key point reduction: " << repProc << " % " << keyPtsSize << ":" << keyPtsFiltered.size() << "\n";
 
-  //draw final filtered points (red) and some stuff
-  for (int i = 0; i < keyPtsFiltered.size(); i++) {
-    int px = 0, py = 0;
+    //draw final filtered points (red) and some stuff
+    for (int i = 0; i < keyPtsFiltered.size(); i++) {
+      int px = 0, py = 0;
 
-    cv::Point2f pt = fillDepthPt(keyPtsFiltered[i].pt, ccx, ccy, cfx, cfy, dcx, dcy, dfx, dfy);
-    roundCoords(px, py, pt, m_nextImg);
-    double depthVal = (int)(depthImg.at<ushort>(py, px) / 5000.0);
-    createNewTrack(keyPtsFiltered[i].pt, frameInd, keyPtsFiltered[i], cv::Mat(), depthVal);
+      cv::Point2f pt = fillDepthPt(keyPtsFiltered[i].pt, ccx, ccy, cfx, cfy, dcx, dcy, dfx, dfy);
+      roundCoords(px, py, pt, m_nextImg);
+      double depthVal = (int)(depthImg.at<ushort>(py, px) / 5000.0);
+      createNewTrack(keyPtsFiltered[i].pt, frameInd, keyPtsFiltered[i], cv::Mat(), depthVal);
 
-    cv::circle(outputFrame, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
+      cv::circle(outputFrame, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
+    }
   }
 }
 
@@ -188,6 +195,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
     for (size_t i = 0; i < prevPoints.size(); i++) {
 			cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
 			double trackDist = norm(err);
+
 			if (trackDist < trackThr && status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
         nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows) {
 				//std::cout << "track depth read " << round(nextCorners[i].y) << " " << round(nextCorners[i].x) << std::endl;
@@ -209,13 +217,13 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 				cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
 				cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
 				cv::circle(outputFrame, nextCorners[i], 3, cv::Scalar(0, 250, 0), -1);
-			}
-      else {
+			} else {
         if (prevPoints[i]->history.size() > 3) {
 					lostTracks.push_back(prevPoints[i]);
 					trajArchiver.archiveTrajectory(prevPoints[i]);
 				}				
 			}
+
 		}
 	}
 
@@ -276,6 +284,7 @@ void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       auto bc = prevPoints[i]->bestCandidate;
       if (prevPoints[i]->history[bc]->frameId < frameInd  && lastHInd > 3) {
 				lostTracks.push_back(prevPoints[i]);
+        //hm: trajArchiver.archiveTrajectory(prevPoints[i]);
 			}
 
       if (prevPoints[i]->history[bc]->frameId == frameInd) {

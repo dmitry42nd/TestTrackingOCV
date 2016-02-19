@@ -1,17 +1,18 @@
 import numpy as np
 import cv2
 
-videoFileName = 'C:\\projects\\kkdata\\280116\\calib1.avi'
-outFolder = 'C:\\projects\\kkdata\\280116\\all_imgs\\'
+videoFileName = 'forward.avi'
+outFolder = 'imgs\\'
 
 cap = cv2.VideoCapture(videoFileName)
 imInd = 0
+
 while(True):
     # Capture frame-by-frame
     ret, frame = cap.read()
 #    if (~ret):
 #        break
-    imName = outFolder + str(imInd) + '.bmp'
+    imName = outFolder + ("%06d" % imInd) + '.bmp'
     cv2.imwrite(imName, frame)
     # Our operations on the frame come here
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

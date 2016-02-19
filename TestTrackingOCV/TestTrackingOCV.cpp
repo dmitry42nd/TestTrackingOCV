@@ -43,7 +43,7 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 	sufInt = std::stoi(suf);
 }
 
-
+#if 0
 void saveDepthData()
 {
 
@@ -132,6 +132,7 @@ void saveDepthData()
 		}
 	}
 }
+#endif
 
 int main()
 {
@@ -159,62 +160,71 @@ int main()
 	boost::filesystem::path p(depthFld);
 	boost::filesystem::path p2(dirName);
 	typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
-	vec v, vRgb;
+
+  vec v, vRgb;
 	copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
 	copy(boost::filesystem::directory_iterator(p2), boost::filesystem::directory_iterator(), std::back_inserter(vRgb));
 	sort(v.begin(), v.end());
 	sort(vRgb.begin(), vRgb.end());
+
 	int dInd = 0;
 	while (!boost::filesystem::is_regular_file(vRgb[dInd]))
 	{
 		dInd++;
 	}
-	std::cout << v[dInd] << std::endl;
-	Tracker tracker(trajArchiver);
-	while (dInd < vRgb.size())
-	{
-		poseProvider.setCurrentFrameNumber(dInd);
+  
+	Tracker tracker(trajArchiver, cv::Size(640, 360));
+  while (dInd < vRgb.size())
+  {
+    poseProvider.setCurrentFrameNumber(dInd);
 
-		cv::Mat depthImg;
-		
-		std::string fName = vRgb[dInd].string();
+    cv::Mat depthImg;
 
-		std::string fNameOnly = vRgb[dInd].filename().string();
-		int prefInt, sufInt;
-		extractNumbers(fNameOnly, prefInt, sufInt);
-		
-		int minInd=-1;
-		double minPref=1e100;
-		for (int cInd = 0; cInd < v.size(); cInd++)
-		{
-			int dPrefInt, dSufInt;
-			extractNumbers(v[cInd].filename().string(), dPrefInt, dSufInt);
-			long double val = abs(dPrefInt - prefInt)*1e8 + abs(dSufInt - sufInt);
-			if (val < minPref)
-			{
-				minInd = cInd; 
-				minPref = val;
-			}
-		}
+    std::string fName = vRgb[dInd].string();
+
+    std::string fNameOnly = vRgb[dInd].filename().string();
+    int prefInt, sufInt;
+    int minInd = -1; //depth img index
+    double minPref = 1e100;
+
+    if (v.size() > 0) {
+      extractNumbers(fNameOnly, prefInt, sufInt);
+      for (int cInd = 0; cInd < v.size(); cInd++)
+      {
+        int dPrefInt, dSufInt;
+        extractNumbers(v[cInd].filename().string(), dPrefInt, dSufInt);
+        long double val = abs(dPrefInt - prefInt)*1e8 + abs(dSufInt - sufInt);
+        if (val < minPref)
+        {
+          minInd = cInd;
+          minPref = val;
+        }
+      }
+    }
 
 		std::cout << fName << std::endl;
-		if (boost::filesystem::exists(fName))
-		{
-			cv::Mat img = cv::imread(fName, 0);			
-			cv::Mat outputImg;
-			cv::cvtColor(img, outputImg, CV_GRAY2BGR);
+    if (boost::filesystem::exists(fName))
+    {
+      cv::Mat img = cv::imread(fName, 0);
+      cv::Mat outputImg;
+      cv::cvtColor(img, outputImg, CV_GRAY2BGR);
 
-			depthImg = cv::imread(v[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
-			//std::cout << depthImg.channels() << std::endl;
-			//std::cout << depthImg.type() << " " << CV_16U << std::endl;
-			//std::cout << depthImg.at<short>(480-1, 640-1) << std::endl;
-			cv::imwrite(depthDebFld + "f" + std::to_string(dInd) + ".bmp", 255/10*depthImg/5000);
+      if (v.size() > 0) {
+        depthImg = cv::imread(v[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
+        //std::cout << depthImg.channels() << std::endl;
+        //std::cout << depthImg.type() << " " << CV_16U << std::endl;
+        //std::cout << depthImg.at<short>(480-1, 640-1) << std::endl;
+        cv::imwrite(depthDebFld + "f" + std::to_string(dInd) + ".bmp", 255 / 10 * depthImg / 5000);
+      }
+      else {
+        depthImg = cv::Mat::zeros(img.size(), CV_8U);
+      }
 
 			std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
 			cv::imwrite(fNameOutClean, outputImg);
 
-			//tracker.trackWithKLT(img, outputImg, dInd, depthImg);
-      tracker.trackWithOrb(img, outputImg, dInd);
+			tracker.trackWithKLT(img, outputImg, dInd, depthImg);
+      //tracker.trackWithOrb(img, outputImg, dInd);
 			std::string fNameOut = outDirName + std::to_string(dInd) + ".bmp";
 			cv::imwrite(fNameOut, outputImg);
 		}

@@ -4,7 +4,7 @@
 class Tracker
 {
 public:
-	Tracker(TrajectoryArchiver &trajArchiver);
+	Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize);
 
 	void trackWithOrb(cv::Mat& nextImg, cv::Mat& outputFrame, int frameInd);
 	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
