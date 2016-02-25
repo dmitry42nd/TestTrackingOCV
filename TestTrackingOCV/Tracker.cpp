@@ -229,9 +229,8 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       {
         if (prevPoints[i]->history.size() > 3)
         {
-          std::cout << "archiving trajectory" << std::endl;
           lostTracks.push_back(prevPoints[i]);
-          trajArchiver.archiveTrajectorySimple(prevPoints[i]);
+          trajArchiver.archiveTrajectory(prevPoints[i]);
         }
       }
     }
