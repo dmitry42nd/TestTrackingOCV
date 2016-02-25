@@ -46,22 +46,25 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
   sufInt = std::stoi(suf);
 }
 
-#if 0
+#if 1
 void saveDepthData()
 {
 
   std::string dirName = "..\\..\\fullTrack\\rgb\\";
-  std::string outDirName = "..\\..\\out\\";
   std::string depthFld = "..\\..\\depth\\";
+  std::string outDirName = "..\\..\\out\\";
   std::string depthDebFld = "..\\..\\depthDebug\\";
+
   boost::filesystem::path p(depthFld);
   boost::filesystem::path p2(dirName);
+
   typedef std::vector<boost::filesystem::path> vec;             // store paths,
   vec v, vRgb;                                // so we can sort them later
   copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
   copy(boost::filesystem::directory_iterator(p2), boost::filesystem::directory_iterator(), std::back_inserter(vRgb));
   sort(v.begin(), v.end());
   sort(vRgb.begin(), vRgb.end());
+
   int dInd = 0;
   while (!boost::filesystem::is_regular_file(vRgb[dInd]))
   {
@@ -158,8 +161,8 @@ int main()
   CameraPoseProviderTXT poseProvider(pathToTracksFolder);
   std::string pathToStorage = "..\\..\\TD_Data\\";
   CameraPose cameraPose;
-  poseProvider.getPoseForFrame(cameraPose, 80);
-  std::cout << cameraPose.R << std::endl;
+  //poseProvider.getPoseForFrame(cameraPose, 80);
+  //std::cout << cameraPose.R << std::endl;
   TrajectoryArchiver trajArchiver(poseProvider, pathToStorage);
 
   boost::filesystem::path p(depthFld);
@@ -193,7 +196,7 @@ int main()
     int minInd = -1; //depth img index
     double minPref = 1e100;
 
-    depthImg = cv::Mat::zeros(imgsSize, CV_8U);
+    depthImg = cv::Mat::zeros(imgsSize, CV_16S);
 
     if (v.size() > 0) {
       //TODO: usual 000.png case
@@ -238,10 +241,11 @@ int main()
     std::cout << dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
+  double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
+
   std::string pathToSave = "..\\..\\trackLogFull\\";
   tracker.saveAllTracks(pathToSave);
 
-  double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
   printf("Total time taken: %.2fs\n", totalTime);
 
   printf("Average time per frame taken: %.4fs\n", totalTime / vRgb.size());

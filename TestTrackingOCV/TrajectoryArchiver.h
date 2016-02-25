@@ -8,10 +8,13 @@ public:
   TrajectoryArchiver(CameraPoseProvider &poseProvider, std::string &pathToStorage);
 
   void archiveTrajectory(std::shared_ptr<Track>& track);
+  void archiveTrajectorySimple(std::shared_ptr<Track>& track);
+
   ~TrajectoryArchiver();
 
 private:
 	void writeTrajectory(std::shared_ptr<Track>& track, int idNum);
+  void writeTrajectorySimple(std::shared_ptr<Track>& track, int idNum);
 
 	CameraPoseProvider &poseProvider;
 	std::string pathToStorage;

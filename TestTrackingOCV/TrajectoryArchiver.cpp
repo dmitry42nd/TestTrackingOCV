@@ -43,6 +43,47 @@ void TrajectoryArchiver::writeTrajectory(std::shared_ptr<Track>& track, int idNu
 	}
 }
 
+void TrajectoryArchiver::writeTrajectorySimple(std::shared_ptr<Track>& track, int idNum)
+{
+  std::string trackFName = pathToStorage + std::to_string(idNum) + ".txt";
+  std::cout << trackFName << std::endl;
+  std::ofstream trackOut(trackFName);
+  for (int i = 0; i < track->history.size(); i++)
+  {
+    std::shared_ptr<TrackedPoint> tp = track->history[i];
+    if (tp->depth == 0)
+    {
+      trackOut << tp->frameId << " ";
+      trackOut << tp->location.x << " ";
+      trackOut << tp->location.y << " ";
+      trackOut << tp->depth << " ";
+    }
+  }
+}
+
+void TrajectoryArchiver::archiveTrajectorySimple(std::shared_ptr<Track>& track)
+{
+  //check if we have at least N depth values
+  int N = 0;
+  int depthCnt = 0;
+  for (int i = 0; i < track->history.size(); i++)
+  {
+    if (track->history[i]->depth > 0)
+    {
+      //std::cout << " non-zero depth !" << std::endl;
+    }
+    if (track->history[i]->depth>0)
+    {
+      depthCnt++;
+    }
+  }
+  if (depthCnt >= N)
+  {
+    writeTrajectorySimple(track, archCnt);
+    archCnt++;
+  }
+}
+
 void TrajectoryArchiver::archiveTrajectory(std::shared_ptr<Track>& track)
 {
 //check if we have at least N depth values
