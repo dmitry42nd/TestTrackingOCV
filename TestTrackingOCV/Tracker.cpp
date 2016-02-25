@@ -230,7 +230,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
         if (prevPoints[i]->history.size() > 3)
         {
           lostTracks.push_back(prevPoints[i]);
-          trajArchiver.archiveTrajectory(prevPoints[i]);
+          trajArchiver.archiveTrajectorySimple(prevPoints[i]);
         }
       }
     }

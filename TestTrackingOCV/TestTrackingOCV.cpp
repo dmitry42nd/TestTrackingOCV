@@ -46,7 +46,7 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
   sufInt = std::stoi(suf);
 }
 
-#if 1
+#if 0
 void saveDepthData()
 {
 
