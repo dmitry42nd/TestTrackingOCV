@@ -11,5 +11,6 @@ public:
 
   std::vector<std::shared_ptr<TrackedPoint>> history;
   std::size_t bestCandidate;
+  std::shared_ptr<TrackedPoint> myBC;
 };
 

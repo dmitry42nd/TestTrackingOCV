@@ -6,7 +6,8 @@ class Tracker
 public:
 	Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize);
 
-	void trackWithOrb(cv::Mat& nextImg, cv::Mat& outputFrame, int frameInd);
+  void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
+  void detectPointsOrb(int indX, int indY, cv::Mat & m_nextImg, cv::Mat & depthImg, cv::Mat & outputFrame, int frameInd);
 	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
 	void saveAllTracks(std::string& pathToSaveFolder);
 	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);	
@@ -17,13 +18,14 @@ public:
 	std::vector<cv::KeyPoint> m_prevKeypoints;
 	std::vector<cv::KeyPoint> m_nextKeypoints;
 
+  cv::Mat                   m_tracksFrame;
 	cv::Mat                   m_prevDescriptors;
 	cv::Mat                   m_nextDescriptors;
 
 	cv::BFMatcher *m_orbMatcher;
 	cv::ORB *orb;
 
-	std::vector<std::shared_ptr<Track>> prevPoints, curPoints;
+	std::vector<std::shared_ptr<Track>> prevTracks, curTracks;
 
 	std::vector<std::shared_ptr<Track>> lostTracks;
 
@@ -53,5 +55,6 @@ protected:
 private:
 	TrajectoryArchiver trajArchiver;
 
+  int mcnt;
 };
 

@@ -233,8 +233,8 @@ int main()
       std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOutClean, outputImg);
 
-      tracker.trackWithKLT(img, outputImg, dInd, depthImg);
-      //tracker.trackWithOrb(img, outputImg, dInd);
+      //tracker.trackWithKLT(img, outputImg, dInd, depthImg);
+      tracker.trackWithOrb(img, outputImg, dInd, depthImg);
       std::string fNameOut = outDirName + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }

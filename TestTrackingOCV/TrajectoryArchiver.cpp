@@ -46,7 +46,7 @@ void TrajectoryArchiver::writeTrajectory(std::shared_ptr<Track>& track, int idNu
 void TrajectoryArchiver::writeTrajectorySimple(std::shared_ptr<Track>& track, int idNum)
 {
   std::string trackFName = pathToStorage + std::to_string(idNum) + ".txt";
-  std::cout << trackFName << std::endl;
+  //std::cout << trackFName << std::endl;
   std::ofstream trackOut(trackFName);
   for (int i = 0; i < track->history.size(); i++)
   {

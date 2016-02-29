@@ -2,6 +2,8 @@
 
 #include "Track.h"
 
-Track::Track() : bestCandidate(NULL)
+Track::Track() : 
+  myBC(std::make_shared<TrackedPoint>()),
+  bestCandidate(NULL)
 {	
 }
