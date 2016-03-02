@@ -21,4 +21,5 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
+#define MAX_DISTANCE 20
 // TODO: reference additional headers your program requires here
