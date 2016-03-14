@@ -141,9 +141,131 @@ void saveDepthData()
 #endif
 
 static const std::regex e("^[0-9]+\\.[0-9]+\\.(bmp|png)$");
+typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
+
+  std::vector<std::shared_ptr<CameraPose>> cameraPoses;
+
+void readCameraPoses()
+{
+  std::string pathToCameraPoses = "../../cameraPoses";
+  std::ifstream cameraPosesData(pathToCameraPoses);
+  int frameId;
+  double RData[9];
+  double tData[3];
+  int curFrameId = 0;
+  while (cameraPosesData >> frameId) {
+    for (auto i = 0; i < 9; i++) {
+      cameraPosesData >> RData[i];
+    }
+    for (auto i = 0; i < 3; i++) {
+      cameraPosesData >> tData[i];
+    }
+    while (curFrameId++ < frameId)
+      cameraPoses.push_back(NULL);
+
+    cv::Mat R = cv::Mat(3, 3, CV_64F, RData);
+    cv::Mat t = cv::Mat(1, 3, CV_64F, tData);
+
+    cameraPoses.push_back(std::make_shared<CameraPose>(frameId, R, t));
+  }
+}
+
+void readTrajectory()
+{
+  std::string pathToTracksStorage = "../../TD_Data/";
+  boost::filesystem::path p(pathToTracksStorage);
+
+  vec tracksTxt;
+  copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(tracksTxt));
+  sort(tracksTxt.begin(), tracksTxt.end());
+
+  int dInd = 0;
+  while (!boost::filesystem::is_regular_file(tracksTxt[dInd]))
+    dInd++;
+
+  int frameId;
+  float x, y, d;
+  while (dInd < tracksTxt.size()) {
+    std::ifstream trackData(tracksTxt[dInd].string());
+
+    std::shared_ptr<Track> track(std::make_shared<Track>());
+    while (trackData >> frameId) {
+      trackData >> x;
+      trackData >> y;
+      trackData >> d;
+      track->history.push_back(std::make_shared<TrackedPoint>(cv::Point2f(x, y), frameId, 0, cv::KeyPoint(), cv::Mat(), 0));
+    }
+
+    if (track->history.size() > 2) {
+      std::shared_ptr<TrackedPoint> pf, pl;
+      std::shared_ptr<CameraPose> pfCP, plCP;
+      //search first and last track points with defined frame's R, t 
+      int pfId = 0;
+      while (cameraPoses[track->history[pfId]->frameId] == NULL || pfId > track->history.size())
+        pfId++;
+      pf = track->history[pfId];
+      pfCP = cameraPoses[pf->frameId];
+      std::cerr << "frame id " << pfCP->frameId << std::endl;
+      std::cerr << "R1 t1 " << pfCP->R << std::endl << pfCP.get()->t << std::endl;
+
+      int plId = track->history.size() - 1;
+      while (cameraPoses[track->history[plId]->frameId] == NULL || plId < pfId)
+        plId--;
+      pl = track->history[plId];
+      plCP = cameraPoses[pl->frameId];
+      
+      if (pfId < plId) {
+        cv::Mat K = cv::Mat::zeros(3, 3, CV_64F);
+        K.at<double>(0, 0) = 522.97697;
+        K.at<double>(0, 2) = 318.47217;
+        K.at<double>(1, 1) = 522.58746;
+        K.at<double>(1, 2) = 256.49968;
+        K.at<double>(2, 2) = 1.0;
+
+        cv::Mat projMatr1 = cv::Mat(3, 4, CV_64FC1);
+        cv::hconcat(pfCP->R.t(), -pfCP->R.t()*pfCP->t.t(), projMatr1);
+        projMatr1 = K*projMatr1;
+
+        cv::Mat projMatr2 = cv::Mat(3, 4, CV_64FC1);
+        cv::hconcat(plCP->R.t(), -plCP->R.t()*plCP->t.t(), projMatr2);
+        projMatr2 = K*projMatr2;
+
+        cv::Mat projPoints1(1, 1, CV_64FC2);
+        std::cerr << "First track point. FrameId " << pfCP->frameId << ":" << pf->location << std::endl;
+        projPoints1.at<cv::Vec3d>(0, 0)[0] = pf->location.x;
+        projPoints1.at<cv::Vec3d>(0, 0)[1] = pf->location.y;
+        cv::Mat projPoints2(1, 1, CV_64FC2);
+        std::cerr << "Last track point. FrameId " << plCP->frameId << ":" << pl->location << std::endl;
+        projPoints2.at<cv::Vec3d>(0, 0)[0] = pl->location.x;
+        projPoints2.at<cv::Vec3d>(0, 0)[1] = pl->location.y;
+
+        cv::Mat points4D = cv::Mat(4, 1, CV_64FC1);
+        cv::triangulatePoints(projMatr1, projMatr2, projPoints1, projPoints2, points4D);
+
+        std::cerr << "4D " << points4D << std::endl;
+        std::cerr << "projMatr1 " << projMatr1 << std::endl;
+        cv::Mat pr1 = projMatr1*points4D;
+        cv::Mat pr2 = projMatr2*points4D;
+        std::cerr << "pr1 " << pr1 / pr1.at<double>(2, 0) << std::endl;
+        std::cerr << "pr2 " << pr2 / pr2.at<double>(2, 0) << std::endl;
+      }
+      else {
+        std::cout << "very bad track\n";
+      }
+
+    }
+
+    return;
+    dInd++;
+  }
+}
 
 int main()
 {
+  readCameraPoses();
+  readTrajectory();
+
+#if 0
   clock_t tStart = clock();
   //saveDepthData();
   //return 0;
@@ -167,7 +289,6 @@ int main()
 
   boost::filesystem::path p(depthFld);
   boost::filesystem::path p2(dirName);
-  typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
 
   vec v, vRgb;
   copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
@@ -250,6 +371,8 @@ int main()
 
   printf("Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
   printf("Average fps: %.2fs\n", vRgb.size() / totalTime);
+#endif
+  std::cout << "\nDone\n";
 
   return 0;
 }
