@@ -13,6 +13,7 @@ public:
 	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);	
 	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
 	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
+  void defineTrackType(std::shared_ptr<Track> & track);
 	//cv::Mat calcGridPointDistribution();
 
 	std::vector<cv::KeyPoint> m_prevKeypoints;
@@ -50,7 +51,11 @@ public:
 	double trackThr = 30;
 
 protected:
+  typedef std::pair<int, int> Coords;
+
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
+  cv::Mat curFrameProjMatr;
+  std::vector<cv::KeyPoint> curKeyPts;
 
 private:
 	TrajectoryArchiver trajArchiver;

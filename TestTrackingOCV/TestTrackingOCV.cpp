@@ -143,21 +143,32 @@ void saveDepthData()
 static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
 typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
 
+#define PI 3.14159265
+
 int main()
 {
 #if 0
-  double data1[3] = { 3,0,1 };
-  double data2[3] = { 0,4 };
-  cv::Mat pr1 = cv::Mat(3, 1, CV_64F, data1);
-  cv::Mat pr2 = cv::Mat(1, 2, CV_64F, data2);
+  double p1d[3] = { 0, 4, 0 };
+  double p2d[3] = { 4, 0, 0 };
+  cv::Mat pr1 = cv::Mat(3, 1, CV_64F, p1d);
+  cv::Mat pr2 = cv::Mat(3, 1, CV_64F, p2d);
 
-  const cv::Rect roi = cv::Rect(0, 0, 1, 2);
-  double err = norm(pr1(roi).t() - pr2);
+  cv::Mat m1tm2 = pr1.t()*pr2;
+  cv::Mat m1tm1 = pr1.t()*pr1; cv::sqrt(m1tm1, m1tm1);
+  cv::Mat m2tm2 = pr2.t()*pr2; cv::sqrt(m2tm2, m2tm2);
+  double cosa = norm(pr1.t()*pr2) / (m1tm1.at<double>(0, 0)*m2tm2.at<double>(0, 0));
 
-  std::cout << "err: " << err << std::endl;
-#endif
+  double a = norm(pr1);
+  double b = norm(pr2);
+  double c = norm(pr1 - pr2);
 
-#if 1
+  std::cerr << "norms " << a << " " << b << " " << c << std::endl;
+  double tmp = 2*pow(a, 2) + 2*pow(b, 2) - pow(c,2);
+  std::cerr << "tmp " << tmp << std::endl;
+  std::cerr << "median " << pow(tmp, 0.5)/2 << std::endl;
+  std::cerr << "angle " << acos(cosa) * 180.0 / PI << std::endl;
+
+#else
   clock_t tStart = clock();
 
   std::string dirName = "../../fullTrack/rgb/";
@@ -238,12 +249,12 @@ int main()
       std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOutClean, outputImg);
 
-      tracker.trackWithKLT(img, outputImg, 600+dInd, depthImg);
+      tracker.trackWithKLT(img, outputImg, 0+dInd, depthImg);
       //tracker.trackWithOrb(img, outputImg, dInd, depthImg);
-      std::string fNameOut = outDirName + std::to_string(600 +dInd) + ".bmp";
+      std::string fNameOut = outDirName + std::to_string(0+dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }
-    std::cout << 600 + dInd << " " << tracker.lostTracks.size() << std::endl;
+    std::cout << 0+dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;

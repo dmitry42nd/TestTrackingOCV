@@ -47,22 +47,12 @@ CameraPoseProviderTXT::CameraPoseProviderTXT(std::string& pathToCameraPoses)
 
 void CameraPoseProviderTXT::readCameraPosesFromFile(std::string& pathToCameraPoses)
 {
-  //const intrinsic camera matrix
-  cv::Mat K = cv::Mat::zeros(3, 3, CV_64F);
-  K.at<double>(0, 0) = 522.97697;
-  K.at<double>(0, 2) = 318.47217;
-  K.at<double>(1, 1) = 522.58746;
-  K.at<double>(1, 2) = 256.49968;
-  K.at<double>(2, 2) = 1.0;
-
   poses.clear();
   std::ifstream cameraPosesData(pathToCameraPoses);
   int frameId;
 
-  std::cerr << "camera poses loading..." << std::endl;
   double RData[9];
   double tData[3];
-  int curFrameId = 0;
   while (cameraPosesData >> frameId) {
     for (auto i = 0; i < 9; i++) {
       cameraPosesData >> RData[i];
@@ -74,18 +64,15 @@ void CameraPoseProviderTXT::readCameraPosesFromFile(std::string& pathToCameraPos
     cv::Mat t = cv::Mat(1, 3, CV_64F, tData);
     cv::Mat P;
     cv::hconcat(R.t(), -R.t()*t.t(), P);
-    P = K*P;
+    //P = K*P;
     poses.insert(std::make_pair(frameId, P));
   }
-
-  std::cerr << "camera poses loaded" << std::endl;
 }
 
 void CameraPoseProviderTXT::setCurrentFrameNumber(int frameInd)
 {
 	frameNum = frameInd;
 }
-
 
 CameraPoseProviderTXT::~CameraPoseProviderTXT()
 {
