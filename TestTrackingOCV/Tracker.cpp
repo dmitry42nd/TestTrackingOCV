@@ -174,12 +174,19 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 }
 
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg) {
-
   curTracks.clear();
   cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
 
   if (prevTracks.size() > 0)
   {
+    //get curr frame camera pose
+
+    cv::Mat projMatr2;
+    if (trajArchiver.poseProvider.poses.count(frameInd) > 0) //if camera pose exists
+    {
+      projMatr2 = trajArchiver.poseProvider.poses[frameInd];
+    }
+
     std::vector<cv::Point2f> prevCorners;
     for (auto &p : prevTracks)
     {
@@ -216,14 +223,87 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
           depthVal /= 5000.0;
         }
 
-        prevTracks[i]->bestCandidate = prevTracks[i]->history.back();
         prevTracks[i]->history.push_back(std::make_shared<TrackedPoint>(nextCorners[i], frameInd, 0, cv::KeyPoint(), cv::Mat(), depthVal));
-        curTracks.push_back(prevTracks[i]);
-        cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
+        prevTracks[i]->bestCandidate = prevTracks[i]->history.back();
+
+        //definePointType();
+        if (!projMatr2.empty() && prevTracks[i]->history.size() > 4) {
+          std::shared_ptr<TrackedPoint> pf, pl;
+
+          //search first track point with defined frame's R, t 
+          int pfId;
+          for (pfId = 0; pfId < prevTracks[i]->history.size(); pfId++) {
+            auto pfFrameId = prevTracks[i]->history[pfId]->frameId;
+            if (trajArchiver.poseProvider.poses.count(pfFrameId) > 0)
+              break;
+          }
+
+          pf = prevTracks[i]->history[pfId];
+          pl = prevTracks[i]->bestCandidate;
+
+          if (pl->frameId - pf->frameId > 3) {
+            cv::Mat projMatr1 = trajArchiver.poseProvider.poses[pf->frameId];
+            cv::Mat projPoints1(1, 1, CV_64FC2);
+            projPoints1.at<cv::Vec3d>(0, 0)[0] = pf->location.x;
+            projPoints1.at<cv::Vec3d>(0, 0)[1] = pf->location.y;
+            //std::cerr << "First track point. FrameId " << pf->frameId << ":" << pf->location << std::endl;
+
+            cv::Mat projPoints2(1, 1, CV_64FC2);
+            projPoints2.at<cv::Vec3d>(0, 0)[0] = pl->location.x;
+            projPoints2.at<cv::Vec3d>(0, 0)[1] = pl->location.y;
+            //std::cerr << "Last track point. FrameId " << pl->frameId << ":" << pl->location << std::endl;
+
+            cv::Mat points4D;
+            cv::triangulatePoints(projMatr1, projMatr2, projPoints1, projPoints2, points4D);
+
+            //std::cerr << "4D " << points4D << std::endl;
+            //std::cerr << "projMatr1 " << projMatr1 << std::endl;
+            cv::Mat pr1 = projMatr1*points4D;
+            cv::Mat pr2 = projMatr2*points4D;
+
+            const cv::Rect roi = cv::Rect(0, 0, 1, 2);
+            cv::Mat cpr1 = (pr1 / pr1.at<double>(2, 0))(roi);
+            cv::Mat cpr2 = (pr2 / pr2.at<double>(2, 0))(roi);
+            cv::Mat_<double> q1 = cv::Mat(pf->location);
+            cv::Mat_<double> q2 = cv::Mat(pl->location);
+            /*
+            std::cerr << "q1 " << q1 << std::endl;
+            std::cerr << "q2 " << q2 << std::endl;
+            std::cerr << "pr1 " << cpr1 << std::endl;
+            std::cerr << "pr2 " << cpr2 << std::endl;
+            */
+            double pointErr1 = norm((q1 - cpr1).t());
+            double pointErr2 = norm((q2 - cpr2).t());
+            //std::cerr << "norms12 " << pointErr1 << " " << pointErr2 << std::endl;
+            if (pointErr1 + pointErr2 < 50)
+            {
+              prevTracks[i]->type = Static;
+            }
+            else 
+            {
+              prevTracks[i]->type = Undef;
+            }
+          }
+          /*else {
+            std::cerr << "very bad track" << std::endl;
+          }*/
+        }
+
+#if 1
+        cv::Scalar color;
+        if (prevTracks[i]->type == Static)
+          color = cv::Scalar(100, 100, 100);
+        else
+          color = cv::Scalar(250, 0, 250);
+        cv::circle(outputFrame, prevCorners[i], 5, color, -1);
         cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
 //        cv::line(m_tracksFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
 //        outputFrame += m_tracksFrame;
-        cv::circle(outputFrame, nextCorners[i], 3, cv::Scalar(0, 250, 0), -1);
+        cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
+#endif
+
+        curTracks.push_back(prevTracks[i]);
+
       }
       else
       {
@@ -255,7 +335,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
   prevImg = m_nextImg;
 }
 
-#if 1
+#if 0
 void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg)
 {
   //orb->detect(m_nextImg, m_nextKeypoints);

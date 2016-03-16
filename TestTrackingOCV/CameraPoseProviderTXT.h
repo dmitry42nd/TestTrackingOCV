@@ -7,15 +7,17 @@ class CameraPoseProviderTXT :
 	public CameraPoseProvider
 {
 public:
-	CameraPoseProviderTXT(std::string& pathToTracksFolder);
+	CameraPoseProviderTXT(std::string& pathToCameraPoses);
 	~CameraPoseProviderTXT();
 
 	void getCurrentPose(CameraPose& cameraPose) override;
 	void getPoseForFrame(CameraPose& cameraPose, int frameNum) override;
 
 	void setCurrentFrameNumber(int frameNum);
-private:
-	std::unordered_map<int, cv::Mat> poses;
+
+
+protected:
+  void readCameraPosesFromFile(std::string& pathToCameraPoses);
 	int frameNum;
 };
 

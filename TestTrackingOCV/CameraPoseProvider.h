@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 
 struct CameraPose {
   CameraPose() { }
@@ -27,6 +28,8 @@ public:
   virtual void getCurrentPose(CameraPose& cameraPose); //last from history?
   virtual void getPoseForFrame(CameraPose& cameraPose, int frameNum);
 
+  //should be private
+  std::unordered_map<int, cv::Mat> poses;
 protected:
   CameraPose curCameraPose; // or CameraPose*
   std::vector<std::shared_ptr<CameraPose>> history;

@@ -47,7 +47,7 @@ public:
 	double ccx = 320.1;
 	double ccy = 247.6;
 
-	double trackThr = 70;
+	double trackThr = 30;
 
 protected:
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
