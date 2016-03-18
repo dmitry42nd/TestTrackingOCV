@@ -168,6 +168,19 @@ int main()
   std::cerr << "median " << pow(tmp, 0.5)/2 << std::endl;
   std::cerr << "angle " << acos(cosa) * 180.0 / PI << std::endl;
 
+  std::string pathToDynMasks = "../../dynmasks/";
+  boost::filesystem::path p3(pathToDynMasks);
+  
+  char imgn[100];
+
+  for (auto i = 600; i < 901; i++) {
+    sprintf(imgn, "../../dynmasks/%06d.png", i);
+    cv::Mat mask = cv::imread(imgn, CV_8U);
+    if (!mask.empty()) {
+      std::wcerr << "mask " << i << " exists" << std::endl;
+    }
+  }
+  
 #else
   clock_t tStart = clock();
 
@@ -178,6 +191,7 @@ int main()
   std::string depthDebFld = "../../depthDebug/";
   std::string pathToTracksFolder = "../../tracks_6_11/track/";
   std::string pathToStorage = "../../TD_Data/";
+  
   std::string pathToCameraPoses = "../../cameraPoses";
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
@@ -239,6 +253,7 @@ int main()
       }
     }
 
+#define ID_SHIFT 858
     std::cout << fName << std::endl;
     if (boost::filesystem::exists(fName))
     {
@@ -249,12 +264,12 @@ int main()
       std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOutClean, outputImg);
 
-      tracker.trackWithKLT(img, outputImg, 0+dInd, depthImg);
+      tracker.trackWithKLT(img, outputImg, ID_SHIFT +dInd, depthImg);
       //tracker.trackWithOrb(img, outputImg, dInd, depthImg);
-      std::string fNameOut = outDirName + std::to_string(0+dInd) + ".bmp";
+      std::string fNameOut = outDirName + std::to_string(ID_SHIFT +dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }
-    std::cout << 0+dInd << " " << tracker.lostTracks.size() << std::endl;
+    std::cout << ID_SHIFT +dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
