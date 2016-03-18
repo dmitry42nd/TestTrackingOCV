@@ -12,8 +12,8 @@
 
 void saveAllDepth()
 {
-  std::string depthFld = "..\\..\\depth\\";
-  std::string depthDebFld = "..\\..\\depthDebugAll\\";
+  std::string depthFld = "../../depth/";
+  std::string depthDebFld = "../../depthDebugAll/";
   boost::filesystem::path p(depthFld);
   typedef std::vector<boost::filesystem::path> vec;             // store paths,
   vec v;                                // so we can sort them later
@@ -46,14 +46,14 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
   sufInt = std::stoi(suf);
 }
 
-#if 1
+#if 0
 void saveDepthData()
 {
 
-  std::string dirName = "..\\..\\fullTrack\\rgb\\";
-  std::string depthFld = "..\\..\\depth\\";
-  std::string outDirName = "..\\..\\out\\";
-  std::string depthDebFld = "..\\..\\depthDebug\\";
+  std::string dirName = "../../fullTrack/rgb/";
+  std::string depthFld = "../../depth/";
+  std::string outDirName = "../../out/";
+  std::string depthDebFld = "../../depthDebug/";
 
   boost::filesystem::path p(depthFld);
   boost::filesystem::path p2(dirName);
@@ -99,7 +99,7 @@ void saveDepthData()
     dInd++;
   }
 
-  std::string folder = "..\\..\\tracks_6_11\\key_tracks\\";
+  std::string folder = "../../tracks_6_11/key_tracks/";
   for (int i = 0; i < 1447; i++)
   {
     std::string fName = folder + "t" + std::to_string(i) + ".txt";
@@ -140,34 +140,51 @@ void saveDepthData()
 }
 #endif
 
-static const std::regex e("^[0-9]+\\.[0-9]+\\.(bmp|png)$");
+static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
+typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
+
+#define PI 3.14159265
 
 int main()
 {
+#if 0
+  double p1d[3] = { 0, 4, 0 };
+  double p2d[3] = { 4, 0, 0 };
+  cv::Mat pr1 = cv::Mat(3, 1, CV_64F, p1d);
+  cv::Mat pr2 = cv::Mat(3, 1, CV_64F, p2d);
+
+  cv::Mat m1tm2 = pr1.t()*pr2;
+  cv::Mat m1tm1 = pr1.t()*pr1; cv::sqrt(m1tm1, m1tm1);
+  cv::Mat m2tm2 = pr2.t()*pr2; cv::sqrt(m2tm2, m2tm2);
+  double cosa = norm(pr1.t()*pr2) / (m1tm1.at<double>(0, 0)*m2tm2.at<double>(0, 0));
+
+  double a = norm(pr1);
+  double b = norm(pr2);
+  double c = norm(pr1 - pr2);
+
+  std::cerr << "norms " << a << " " << b << " " << c << std::endl;
+  double tmp = 2*pow(a, 2) + 2*pow(b, 2) - pow(c,2);
+  std::cerr << "tmp " << tmp << std::endl;
+  std::cerr << "median " << pow(tmp, 0.5)/2 << std::endl;
+  std::cerr << "angle " << acos(cosa) * 180.0 / PI << std::endl;
+
+#else
   clock_t tStart = clock();
-  //saveDepthData();
-  //return 0;
 
-  //saveAllDepth();
+  std::string dirName = "../../fullTrack/rgb/";
+  std::string outDirName = "../../debug_tracking/out/";
+  std::string outCleanDirName = "../../outClean/";
+  std::string depthFld = "../../depth/";
+  std::string depthDebFld = "../../depthDebug/";
+  std::string pathToTracksFolder = "../../tracks_6_11/track/";
+  std::string pathToStorage = "../../TD_Data/";
+  std::string pathToCameraPoses = "../../cameraPoses";
 
-  std::string dirName = "..\\..\\fullTrack\\rgb\\";
-  std::string outDirName = "..\\..\\debug_tracking\\out\\";
-  std::string outCleanDirName = "..\\..\\outClean\\";
-  std::string depthFld = "..\\..\\depth\\";
-  std::string depthDebFld = "..\\..\\depthDebug\\";
-
-  //std::string pathToTracksFolder = "C:\\projects\\kkdata\\tracks_6_11\\track";
-  std::string pathToTracksFolder = "..\\..\\tracks_6_11\\track\\";
-  CameraPoseProviderTXT poseProvider(pathToTracksFolder);
-  std::string pathToStorage = "..\\..\\TD_Data\\";
-  CameraPose cameraPose;
-  //poseProvider.getPoseForFrame(cameraPose, 80);
-  //std::cout << cameraPose.R << std::endl;
+  CameraPoseProviderTXT poseProvider(pathToCameraPoses);
   TrajectoryArchiver trajArchiver(poseProvider, pathToStorage);
 
   boost::filesystem::path p(depthFld);
   boost::filesystem::path p2(dirName);
-  typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
 
   vec v, vRgb;
   copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
@@ -180,17 +197,16 @@ int main()
   {
     dInd++;
   }
-  cv::Size imgsSize = cv::imread(vRgb[dInd].string()).size();
 
+  cv::Size imgsSize = cv::imread(vRgb[dInd].string()).size();
   Tracker tracker(trajArchiver, imgsSize);
+
   while (dInd < vRgb.size())
   {
     poseProvider.setCurrentFrameNumber(dInd);
 
     cv::Mat depthImg;
-
     std::string fName = vRgb[dInd].string();
-
     std::string fNameOnly = vRgb[dInd].filename().string();
     int prefInt, sufInt;
     int minInd = -1; //depth img index
@@ -233,23 +249,25 @@ int main()
       std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOutClean, outputImg);
 
-      tracker.trackWithKLT(img, outputImg, dInd, depthImg);
-      //tracker.trackWithOrb(img, outputImg, dInd);
-      std::string fNameOut = outDirName + std::to_string(dInd) + ".bmp";
+      tracker.trackWithKLT(img, outputImg, 0+dInd, depthImg);
+      //tracker.trackWithOrb(img, outputImg, dInd, depthImg);
+      std::string fNameOut = outDirName + std::to_string(0+dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }
-    std::cout << dInd << " " << tracker.lostTracks.size() << std::endl;
+    std::cout << 0+dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
 
-  std::string pathToSave = "..\\..\\trackLogFull\\";
+  std::string pathToSave = "../../trackLogFull/";
   tracker.saveAllTracks(pathToSave);
 
-  printf("Total time taken: %.2fs\n", totalTime);
+  fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
+  fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
+  fprintf(stderr, "Average fps: %.2fs\n", vRgb.size() / totalTime);
+#endif
 
-  printf("Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
-  printf("Average fps: %.2fs\n", vRgb.size() / totalTime);
+  std::cout << "Done" << std::endl;
 
   return 0;
 }

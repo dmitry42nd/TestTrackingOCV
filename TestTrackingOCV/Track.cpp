@@ -2,6 +2,8 @@
 
 #include "Track.h"
 
-Track::Track() : bestCandidate(NULL)
+Track::Track() : 
+  type(Undef),
+  bestCandidate(std::make_shared<TrackedPoint>())
 {	
 }

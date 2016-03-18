@@ -4,12 +4,15 @@
 
 #include "TrackedPoint.h"
 
+enum PointType {Undef, Static, Dynamic};
+
 class Track
 {
 public:
   Track();
 
+  PointType type;
   std::vector<std::shared_ptr<TrackedPoint>> history;
-  std::size_t bestCandidate;
+  std::shared_ptr<TrackedPoint> bestCandidate;
 };
 
