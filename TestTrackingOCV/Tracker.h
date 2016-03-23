@@ -1,10 +1,12 @@
 #pragma once
 #include "Track.h"
 #include "TrajectoryArchiver.h"
+
 class Tracker
 {
 public:
 	Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize);
+  Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize, std::string pathToTrackTypes);
 
   void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
   void detectPointsOrb(int indX, int indY, cv::Mat & m_nextImg, cv::Mat & depthImg, cv::Mat & outputFrame, int frameInd);
@@ -14,7 +16,9 @@ public:
 	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
 	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
   //void defineTrackType(std::shared_ptr<Track> & track);
-  void defineTrackType(std::vector<std::shared_ptr<Track>> & tracks, double angThr, double angFact, double errThr);
+
+	void defineTrackType(std::vector<std::shared_ptr<Track>> & tracks, double angThr, double angFact, double errThr);
+	void defineTrackType(std::shared_ptr<Track> track, double errThr);
 	//cv::Mat calcGridPointDistribution();
 
 	std::vector<cv::KeyPoint> m_prevKeypoints;
@@ -54,10 +58,10 @@ public:
 protected:
   typedef std::pair<int, int> Coords;
 
+  std::string pathToTrackTypes;
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
   cv::Mat K;
-  cv::Mat curFrameProjMatr;
-  std::vector<cv::KeyPoint> curKeyPts;
+  cv::Mat projMatrCurr;
 
 private:
 	TrajectoryArchiver trajArchiver;

@@ -14,8 +14,8 @@ public:
   PointType type;
   float angle;
   float c, median;
-  float err1;
-  float err2;
+  float err[3];
+
   std::vector<std::shared_ptr<TrackedPoint>> history;
   std::shared_ptr<TrackedPoint> bestCandidate;
 };

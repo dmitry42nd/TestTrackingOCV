@@ -1,7 +1,6 @@
 #include "stdafx.h"
 
 #include "TrajectoryArchiver.h"
-#include <opencv2\calib3d\calib3d.hpp>
 
 
 TrajectoryArchiver::TrajectoryArchiver(CameraPoseProvider &poseProvider, std::string &pathToStorage) : poseProvider(poseProvider), pathToStorage(pathToStorage)

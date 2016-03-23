@@ -1,5 +1,7 @@
 #pragma once
 
+#define MAX_DISTANCE 20
+
 class TrackedPoint
 {
 public:

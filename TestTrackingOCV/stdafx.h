@@ -21,6 +21,7 @@
 #include "opencv2/calib3d/calib3d.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include "ceres/ceres.h"
+#include "glog/logging.h"
 
-#define MAX_DISTANCE 20
 // TODO: reference additional headers your program requires here

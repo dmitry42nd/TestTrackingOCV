@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-videoFileName = 'forward.avi'
+videoFileName = 'compilation.avi'
 outFolder = 'imgs\\'
 
 cap = cv2.VideoCapture(videoFileName)

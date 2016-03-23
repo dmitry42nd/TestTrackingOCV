@@ -18,6 +18,8 @@ public:
 
 protected:
   void readCameraPosesFromFile(std::string& pathToCameraPoses);
+	//R as vector, for ceres-solver
+
 	int frameNum;
 };
 

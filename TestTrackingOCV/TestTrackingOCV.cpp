@@ -10,6 +10,7 @@
 #include "CameraPoseProviderTXT.h"
 #include "TrajectoryArchiver.h"
 
+#if 0
 void saveAllDepth()
 {
   std::string depthFld = "../../depth/";
@@ -36,6 +37,7 @@ void saveAllDepth()
     dInd++;
   }
 }
+#endif
 
 void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 {
@@ -158,9 +160,9 @@ int main()
   cv::Mat m2tm2 = pr2.t()*pr2; cv::sqrt(m2tm2, m2tm2);
   double cosa = norm(pr1.t()*pr2) / (m1tm1.at<double>(0, 0)*m2tm2.at<double>(0, 0));
 
-  double a = norm(pr1);
-  double b = norm(pr2);
-  double c = norm(pr1 - pr2);
+  double a = cv::norm(pr1);
+  double b = cv::norm(pr2);
+  double c = cv::norm(pr1 - pr2);
 
   std::cerr << "norms " << a << " " << b << " " << c << std::endl;
   double tmp = 2*pow(a, 2) + 2*pow(b, 2) - pow(c,2);
@@ -184,6 +186,8 @@ int main()
 #else
   clock_t tStart = clock();
 
+  boost::filesystem::current_path("/home/dmitry/projects/DynTrack/TestTrackingOCV/bin");
+
   std::string dirName = "../../fullTrack/rgb/";
   std::string outDirName = "../../debug_tracking/out/";
   std::string outCleanDirName = "../../outClean/";
@@ -193,6 +197,7 @@ int main()
   std::string pathToStorage = "../../TD_Data/";
   
   std::string pathToCameraPoses = "../../cameraPoses";
+  std::string pathToTrackTypes = "../../tracktypes/";
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
   TrajectoryArchiver trajArchiver(poseProvider, pathToStorage);
@@ -213,7 +218,7 @@ int main()
   }
 
   cv::Size imgsSize = cv::imread(vRgb[dInd].string()).size();
-  Tracker tracker(trajArchiver, imgsSize);
+  Tracker tracker(trajArchiver, imgsSize, pathToTrackTypes);
 
   while (dInd < vRgb.size())
   {
@@ -224,14 +229,14 @@ int main()
     std::string fNameOnly = vRgb[dInd].filename().string();
     int prefInt, sufInt;
     int minInd = -1; //depth img index
-    double minPref = 1e100;
+    long double minPref = 1e100;
 
     depthImg = cv::Mat::zeros(imgsSize, CV_16S);
 
     if (v.size() > 0) {
       //TODO: usual 000.png case
       //000.000.png
-      if (std::regex_match(fNameOnly, e)) {
+      if (std::regex_match(fNameOnly.c_str(), e)) {
         extractNumbers(fNameOnly, prefInt, sufInt);
         for (int cInd = 0; cInd < v.size(); cInd++)
         {
@@ -253,7 +258,7 @@ int main()
       }
     }
 
-#define ID_SHIFT 858
+#define ID_SHIFT 601
     std::cout << fName << std::endl;
     if (boost::filesystem::exists(fName))
     {
@@ -264,12 +269,12 @@ int main()
       std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOutClean, outputImg);
 
-      tracker.trackWithKLT(img, outputImg, ID_SHIFT +dInd, depthImg);
+      tracker.trackWithKLT(img, outputImg, ID_SHIFT + dInd, depthImg);
       //tracker.trackWithOrb(img, outputImg, dInd, depthImg);
-      std::string fNameOut = outDirName + std::to_string(ID_SHIFT +dInd) + ".bmp";
+      std::string fNameOut = outDirName + std::to_string(ID_SHIFT + dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }
-    std::cout << ID_SHIFT +dInd << " " << tracker.lostTracks.size() << std::endl;
+    std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;

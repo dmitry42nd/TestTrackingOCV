@@ -4,7 +4,6 @@
 #include <map>
 #include <utility>
 namespace fs = boost::filesystem;
-
 #if 0
 CameraPoseProviderTXT::CameraPoseProviderTXT(std::string& pathToTracksFolder)
 {
@@ -40,6 +39,7 @@ CameraPoseProviderTXT::CameraPoseProviderTXT(std::string& pathToTracksFolder)
 }
 #endif
 
+#if 1
 CameraPoseProviderTXT::CameraPoseProviderTXT(std::string& pathToCameraPoses)
 {
   readCameraPosesFromFile(pathToCameraPoses);
@@ -68,6 +68,7 @@ void CameraPoseProviderTXT::readCameraPosesFromFile(std::string& pathToCameraPos
     poses.insert(std::make_pair(frameId, P));
   }
 }
+#endif
 
 void CameraPoseProviderTXT::setCurrentFrameNumber(int frameInd)
 {
