@@ -6,7 +6,8 @@
 
 struct SnavelyReprojectionError {
   SnavelyReprojectionError(double observed_x, double observed_y, double *camera)
-      : observed_x(observed_x), observed_y(observed_y), camera(camera) {
+      : observed_x(observed_x), observed_y(observed_y) {
+    memcpy(SnavelyReprojectionError::camera, camera, 9*sizeof(double));
   }
 
   template <typename T>
@@ -56,5 +57,5 @@ struct SnavelyReprojectionError {
 
   double observed_x;
   double observed_y;
-  double *camera;
+  double camera[9];
 };

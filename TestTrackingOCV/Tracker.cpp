@@ -200,12 +200,21 @@ struct array_deleter
 };
 
 
+void undistPoint(cv::Point2f const& point, cv::Mat & undistPoint) {
+  cv::Mat projPoint1(1, 1, CV_64FC2);
+  projPoint1.at<cv::Vec2d>(0, 0)[0] = point.x;
+  projPoint1.at<cv::Vec2d>(0, 0)[1] = point.y;
+
+  cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
+  cv::undistortPoints(projPoint1, undistPoint, K, dist);
+
+}
+
 //ceres-solver
 void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
   //const intrinsic camera matrix
   const double focal_x = 522.97697;
   const double focal_y = 522.58746;
-
   const double shift_x = 318.47217;
   const double shift_y = 256.49968;
 
@@ -217,18 +226,13 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
   if (track->history.size() > 3) {
     ceres::Problem problem;
     for (auto p : track->history) {
-      double *camera = new double[12];
-      camera[6] = focal_x;
-      camera[7] = focal_y;
-      camera[8] = l1;
-      camera[9] = l2;
-      camera[10] = shift_x;
-      camera[11] = shift_y;
+      double camera[6];
 
       CameraPose cp;
       trajArchiver.poseProvider.getPoseForFrame(cp, p->frameId);
       if (cv::countNonZero(cp.R) && cv::countNonZero(cp.t)) //check if not empty
       {
+        //get R t
         cv::Mat_<double> Rv;
         cv::Rodrigues(cp.R, Rv);
 
@@ -238,9 +242,10 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
         for (auto i = 0; i < 3; i++) {
           camera[i+3] = cp.t.at<double>(i, 0);
         }
+
         std::cerr<< Rv<< std::endl;
         std::cerr<< cp.t << std::endl;
-        for(int i = 0; i < 9; i++) {
+        for(int i = 0; i < 6; i++) {
           std::cerr << camera[i] << " ";
         }
         std::cerr << "\n";
