@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include "Tracker.h"
-#include "SnavelyReprojectionError.h"
+#include "TriangulateError.h"
 
 #include "opencv2/video/tracking.hpp"
 
@@ -190,79 +190,134 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 }
 
 #if 1
-template< typename T >
-struct array_deleter
-{
-  void operator ()( T const * p)
-  {
-    delete[] p;
+void undistPoint(cv::Point2f const& point, cv::Mat const& K, cv::Mat const& dist, cv::Point2d & undist) {
+  cv::Mat projPoint(1, 1, CV_64FC2);
+  projPoint.at<cv::Vec2d>(0, 0)[0] = point.x;
+  projPoint.at<cv::Vec2d>(0, 0)[1] = point.y;
+
+  cv::Mat undistPoint = cv::Mat(1,1,CV_64FC2);
+  cv::undistortPoints(projPoint, undistPoint, K, dist);
+
+  undist.x = undistPoint.at<cv::Vec2d>(0,0)[0];
+  undist.y = undistPoint.at<cv::Vec2d>(0,0)[1];
+}
+
+void printCamera(double * camera, int id) {
+  std::cout << "camera" << id << std::endl;
+  for(int i = 0; i < 6; i++) {
+    std::cout << camera[i] << " ";
   }
-};
-
-
-void undistPoint(cv::Point2f const& point, cv::Mat & undistPoint) {
-  cv::Mat projPoint1(1, 1, CV_64FC2);
-  projPoint1.at<cv::Vec2d>(0, 0)[0] = point.x;
-  projPoint1.at<cv::Vec2d>(0, 0)[1] = point.y;
-
-  cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
-  cv::undistortPoints(projPoint1, undistPoint, K, dist);
-
+  std::cout << std::endl;
 }
 
 //ceres-solver
 void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
-  //const intrinsic camera matrix
-  const double focal_x = 522.97697;
-  const double focal_y = 522.58746;
-  const double shift_x = 318.47217;
-  const double shift_y = 256.49968;
+  //kinect
+  cv::Mat K = cv::Mat::zeros(3, 3, CV_64F);
+  K.at<double>(0, 0) = 522.97697;
+  K.at<double>(0, 2) = 318.47217;
+  K.at<double>(1, 1) = 522.58746;
+  K.at<double>(1, 2) = 256.49968;
+  K.at<double>(2, 2) = 1.0;
+  cv::Mat_<double> dist(1,4);
+  dist << 0.18962,-0.38214, 0, 0;
 
-  const double l1    = 0.18962;
-  const double l2    = -0.38214;
-
-  double point[3] = {1.0, 1.0, 1.0};
+  double *point = new double[3];
+  point[0] = 0;
+  point[1] = 0;
+  point[2] = 0;
 
   if (track->history.size() > 3) {
     ceres::Problem problem;
-    for (auto p : track->history) {
-      double camera[6];
 
-      CameraPose cp;
-      trajArchiver.poseProvider.getPoseForFrame(cp, p->frameId);
-      if (cv::countNonZero(cp.R) && cv::countNonZero(cp.t)) //check if not empty
-      {
-        //get R t
-        cv::Mat_<double> Rv;
-        cv::Rodrigues(cp.R, Rv);
-
-        for (auto i = 0; i < 3; i++) {
-          camera[i] = Rv.at<double>(i, 0);
-        }
-        for (auto i = 0; i < 3; i++) {
-          camera[i+3] = cp.t.at<double>(i, 0);
-        }
-
-        std::cerr<< Rv<< std::endl;
-        std::cerr<< cp.t << std::endl;
-        for(int i = 0; i < 6; i++) {
-          std::cerr << camera[i] << " ";
-        }
-        std::cerr << "\n";
-
-        ceres::CostFunction* cost_function = SnavelyReprojectionError::Create(double(p->location.x), double(p->location.y), camera);
-        problem.AddResidualBlock(cost_function, NULL, point);
-      }
+    std::shared_ptr<TrackedPoint> firstPoint, lastPoint;
+    CameraPose cp1, cp2;
+    int pfId;
+    for (pfId = 0; pfId < track->history.size(); pfId++)
+    {
+      auto pfFrameId = track->history[pfId]->frameId;
+      trajArchiver.poseProvider.getPoseForFrame(cp1, pfFrameId);
+      if (cv::countNonZero(cp1.R) && cv::countNonZero(cp1.t))
+        break;
     }
+    firstPoint  = track->history[pfId];
+    lastPoint   = track->history.back();
+    trajArchiver.poseProvider.getPoseForFrame(cp2, lastPoint->frameId);
+
+
+    double *camera1 = new double[6];
+    //get R t
+    cv::Mat_<double> Rv1;
+    cv::Rodrigues(cp1.R, Rv1);
+
+    for (auto i = 0; i < 3; i++) {
+      camera1[i] = Rv1.at<double>(i, 0);
+    }
+    for (auto i = 0; i < 3; i++) {
+      camera1[i+3] = cp1.t.at<double>(i, 0);
+    }
+    printCamera(camera1, 1);
+    cv::Point2d unPoint1;
+    undistPoint(firstPoint->location, K, dist, unPoint1);
+
+
+    ceres::CostFunction* cost_function1 = TriangulateError::Create(unPoint1.x, unPoint1.y, camera1);
+    problem.AddResidualBlock(cost_function1, NULL, point);
+
+
+    double *camera2 = new double[6];
+    //get R t
+    cv::Mat_<double> Rv2;
+    cv::Rodrigues(cp2.R, Rv2);
+
+    for (auto i = 0; i < 3; i++) {
+      camera2[i] = Rv2.at<double>(i, 0);
+    }
+    for (auto i = 0; i < 3; i++) {
+      camera2[i+3] = cp2.t.at<double>(i, 0);
+    }
+    printCamera(camera2, 2);
+
+    cv::Point2d unPoint2;
+    undistPoint(lastPoint->location, K, dist, unPoint2);
+
+    ceres::CostFunction* cost_function2 = TriangulateError::Create(unPoint2.x, unPoint2.y, camera2);
+    problem.AddResidualBlock(cost_function2, NULL, point);
+
 
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.minimizer_progress_to_stdout = true;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    //std::cout << summary.FullReport() << "\n";
+    std::cout << summary.FullReport() << "\n";
+
+    std::cout << "final p: " <<  point[0] << " " <<  point[1] << " " <<  point[2]<< "\n";
+    printCamera(camera1, 1);
+    printCamera(camera2, 2);
+
+    double p[3];
+    p[0] = 0; p[1] = 0; p[2] = 0;
+    ceres::AngleAxisRotatePoint(camera1, point, p);
+    p[0] += camera1[3]; p[1] += camera1[4]; p[2] += camera1[5];
+    double xp = - p[0] / p[2];
+    double yp = - p[1] / p[2];
+
+    std::cout << "observed_norm1: " <<  unPoint1.x << " " <<  unPoint1.y << "\n";
+    std::cout << "predicted_norm: " <<  xp << " " <<  yp << "\n";
 
 
+    //p[0] = 0; p[1] = 0; p[2] = 0;
+    ceres::AngleAxisRotatePoint(camera2, point, p);
+    p[0] += camera2[3]; p[1] += camera2[4]; p[2] += camera2[5];
+    xp = - p[0] / p[2];
+    yp = - p[1] / p[2];
+    std::cout << "observed_norm2: " <<  unPoint2.x << " " <<  unPoint2.y << "\n";
+    std::cout << "predicted_norm: " <<  xp << " " <<  yp << "\n";
+
+    delete[] point;
+    delete[] camera1;
+    delete[] camera2;
     /*
     std::cerr << "actual0: " <<  double(track->bestCandidate->location.x) << " " <<  double(track->bestCandidate->location.y) << "\n";
     std::cerr << "predict: " <<  predicted_x << " " <<  predicted_y << "\n";
@@ -274,10 +329,8 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
 #endif
 
 
-char imgn[100];
-
 void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> curTracks,
-  int const frameInd, cv::Mat const & mask, int errThr)
+                int const frameInd, cv::Mat const & mask, int errThr)
 {
   int  FN = 0; int  TN = 0; int  TP = 0; int  FP = 0; int  U = 0;
   long double FPErr = 0;
@@ -341,6 +394,7 @@ void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> cur
   float FPR = FP / (float)(TN + FP);
   trackOut << FPR << ", " << TPR  << std::endl;
 }
+char imgn[100];
 
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg) {
   curTracks.clear();

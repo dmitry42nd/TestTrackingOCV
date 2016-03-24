@@ -150,38 +150,14 @@ typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort
 int main()
 {
 #if 0
-  double p1d[3] = { 0, 4, 0 };
-  double p2d[3] = { 4, 0, 0 };
-  cv::Mat pr1 = cv::Mat(3, 1, CV_64F, p1d);
-  cv::Mat pr2 = cv::Mat(3, 1, CV_64F, p2d);
-
-  cv::Mat m1tm2 = pr1.t()*pr2;
-  cv::Mat m1tm1 = pr1.t()*pr1; cv::sqrt(m1tm1, m1tm1);
-  cv::Mat m2tm2 = pr2.t()*pr2; cv::sqrt(m2tm2, m2tm2);
-  double cosa = norm(pr1.t()*pr2) / (m1tm1.at<double>(0, 0)*m2tm2.at<double>(0, 0));
-
-  double a = cv::norm(pr1);
-  double b = cv::norm(pr2);
-  double c = cv::norm(pr1 - pr2);
-
-  std::cerr << "norms " << a << " " << b << " " << c << std::endl;
-  double tmp = 2*pow(a, 2) + 2*pow(b, 2) - pow(c,2);
-  std::cerr << "tmp " << tmp << std::endl;
-  std::cerr << "median " << pow(tmp, 0.5)/2 << std::endl;
-  std::cerr << "angle " << acos(cosa) * 180.0 / PI << std::endl;
-
-  std::string pathToDynMasks = "../../dynmasks/";
-  boost::filesystem::path p3(pathToDynMasks);
-  
-  char imgn[100];
-
-  for (auto i = 600; i < 901; i++) {
-    sprintf(imgn, "../../dynmasks/%06d.png", i);
-    cv::Mat mask = cv::imread(imgn, CV_8U);
-    if (!mask.empty()) {
-      std::wcerr << "mask " << i << " exists" << std::endl;
-    }
-  }
+  double data[12] = {1,2,3,4,5,6,7,8,9,10,11,12};
+  cv::Mat pose = cv::Mat(3,4,CV_64F, data);
+  std::cout << pose << "\n";
+  CameraPose cameraPose;
+  cameraPose.R = pose(cv::Rect(0, 0, 3, 3));
+  cameraPose.t = pose(cv::Rect(3, 0, 1, 3));
+  std::cout << cameraPose.R << "\n";
+  std::cout << cameraPose.t << "\n";
   
 #else
   clock_t tStart = clock();
