@@ -16,6 +16,7 @@
 #include <cstdio>
 
 #include "boost/filesystem.hpp"
+#include "boost/shared_array.hpp"
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/calib3d/calib3d.hpp"

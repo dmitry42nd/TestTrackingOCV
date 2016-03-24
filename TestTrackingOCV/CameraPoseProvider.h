@@ -28,9 +28,8 @@ public:
   virtual void getCurrentPose(CameraPose& cameraPose); //last from history?
   virtual void getPoseForFrame(CameraPose& cameraPose, int frameNum);
 
-  //should be protected
-  std::unordered_map<int, cv::Mat> poses;
 protected:
+  std::unordered_map<int, cv::Mat> poses;
   CameraPose curCameraPose; // or CameraPose*
   std::vector<std::shared_ptr<CameraPose>> history;
 

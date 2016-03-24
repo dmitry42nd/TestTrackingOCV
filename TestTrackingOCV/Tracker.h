@@ -17,7 +17,6 @@ public:
 	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
   //void defineTrackType(std::shared_ptr<Track> & track);
 
-	void defineTrackType(std::vector<std::shared_ptr<Track>> & tracks, double angThr, double angFact, double errThr);
 	void defineTrackType(std::shared_ptr<Track> track, double errThr);
 	//cv::Mat calcGridPointDistribution();
 
@@ -60,12 +59,9 @@ protected:
 
   std::string pathToTrackTypes;
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
-  cv::Mat K;
-  cv::Mat projMatrCurr;
 
 private:
 	TrajectoryArchiver trajArchiver;
-
   int mcnt;
 };
 

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "Tracker.h"
+#include "SnavelyReprojectionError.h"
 
 #include "opencv2/video/tracking.hpp"
 
@@ -188,206 +189,85 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
   }
 }
 
-#if 0
+#if 1
+template< typename T >
+struct array_deleter
+{
+  void operator ()( T const * p)
+  {
+    delete[] p;
+  }
+};
+
+
 //ceres-solver
 void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
   //const intrinsic camera matrix
-  const double focal = (522.97697 + 522.58746)/2;
-  const double l1    = 318.47217;
-  const double l2    = 256.49968;
+  const double focal_x = 522.97697;
+  const double focal_y = 522.58746;
 
+  const double shift_x = 318.47217;
+  const double shift_y = 256.49968;
+
+  const double l1    = 0.18962;
+  const double l2    = -0.38214;
+
+  double point[3] = {1.0, 1.0, 1.0};
 
   if (track->history.size() > 3) {
+    ceres::Problem problem;
+    for (auto p : track->history) {
+      double *camera = new double[12];
+      camera[6] = focal_x;
+      camera[7] = focal_y;
+      camera[8] = l1;
+      camera[9] = l2;
+      camera[10] = shift_x;
+      camera[11] = shift_y;
 
-    //get R, t for each point of track;
-    for (auto p : track->history)
-    {
-      if (trajArchiver.poseProvider.poses.count(p->frameId))
+      CameraPose cp;
+      trajArchiver.poseProvider.getPoseForFrame(cp, p->frameId);
+      if (cv::countNonZero(cp.R) && cv::countNonZero(cp.t)) //check if not empty
       {
+        cv::Mat_<double> Rv;
+        cv::Rodrigues(cp.R, Rv);
 
+        for (auto i = 0; i < 3; i++) {
+          camera[i] = Rv.at<double>(i, 0);
+        }
+        for (auto i = 0; i < 3; i++) {
+          camera[i+3] = cp.t.at<double>(i, 0);
+        }
+        std::cerr<< Rv<< std::endl;
+        std::cerr<< cp.t << std::endl;
+        for(int i = 0; i < 9; i++) {
+          std::cerr << camera[i] << " ";
+        }
+        std::cerr << "\n";
+
+        ceres::CostFunction* cost_function = SnavelyReprojectionError::Create(double(p->location.x), double(p->location.y), camera);
+        problem.AddResidualBlock(cost_function, NULL, point);
       }
     }
 
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.minimizer_progress_to_stdout = true;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    //std::cout << summary.FullReport() << "\n";
 
 
-    if (firstPoint->frameId < lastPoint->frameId)
-    {
-      cv::Mat projMatr1 = trajArchiver.poseProvider.poses[firstPoint->frameId];
+    /*
+    std::cerr << "actual0: " <<  double(track->bestCandidate->location.x) << " " <<  double(track->bestCandidate->location.y) << "\n";
+    std::cerr << "predict: " <<  predicted_x << " " <<  predicted_y << "\n";
+    std::cerr << "res    : " <<  residuals[0] << " " <<  residuals[1] << "\n";
+    */
 
-      cv::Mat projPoint1(1, 1, CV_64FC2);
-      projPoint1.at<cv::Vec3d>(0, 0)[0] = firstPoint->location.x;
-      projPoint1.at<cv::Vec3d>(0, 0)[1] = firstPoint->location.y;
-      //std::cerr << "First track point. FrameId " << firstPoint->frameId << ":" << firstPoint->location << std::endl;
-
-      cv::Mat projPoint2(1, 1, CV_64FC2);
-      projPoint2.at<cv::Vec3d>(0, 0)[0] = lastPoint->location.x;
-      projPoint2.at<cv::Vec3d>(0, 0)[1] = lastPoint->location.y;
-      //std::cerr << "Last track point. FrameId " << lastPoint->frameId << ":" << lastPoint->location << std::endl;
-
-      cv::Mat point4D;
-      cv::triangulatePoints(K*projMatr1, K*projMatrCurr, projPoint1, projPoint2, point4D);
-
-      //std::cerr << "4D " << point4D << std::endl;
-      cv::Mat pr1 = projMatr1*point4D;
-      cv::Mat pr2 = projMatrCurr*point4D;
-
-      double cosa = cv::norm(pr1.t()*pr2) / (norm(pr1)*norm(pr2));
-      double ang = acos(cosa) * 180.0 / PI;
-      //std::cerr << "angle " << ang << std::endl;
-
-      double a = cv::norm(pr1);
-      double b = cv::norm(pr2);
-      double c = cv::norm(pr1 - pr2);
-      double median = pow(2 * pow(a, 2) + 2 * pow(b, 2) - pow(c, 2), 0.5) / 2;
-      //std::cerr << "median " << median << std::endl;
-      //std::cerr << "c "      << c      << std::endl;
-
-      if (ang > angThr && c > median / angFactor) {
-        const cv::Rect roi = cv::Rect(0, 0, 1, 2);
-        cv::Mat pr1_   = K*pr1;
-        cv::Mat pr2_   = K*pr2;
-        //std::cerr << "projected " << pr1_  << " " << pr2_ << std::endl;
-        //std::cerr << "projected " << pr1_ / pr1_.at<double>(2, 0) << " " << pr2_ / pr2_.at<double>(2, 0) << std::endl;
-
-        cv::Mat_<double> cpr1 = (pr1_ / pr1_.at<double>(2, 0))(roi);
-        cv::Mat_<double> cpr2 = (pr2_ / pr2_.at<double>(2, 0))(roi);
-        cv::Mat_<double> opr1 = cv::Mat(firstPoint->location);
-        cv::Mat_<double> opr2 = cv::Mat(lastPoint->location);
-
-        double pointErr1 = cv::norm(opr1 - cpr1);
-        double pointErr2 = cv::norm(opr2 - cpr2);
-        //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
-
-        //if ((pointErr1 + pointErr2 + pointErrmid) / 3 < errThr)
-        //if ((pointErr1 + pointErr2) / 2 < errThr)
-        if (std::max(pointErr1, pointErr2) < errThr)
-        {
-          track->type = Static;
-        }
-        else
-        {
-          track->type = Dynamic;
-        }
-        track->err[0] = static_cast<float>(pointErr1);
-        track->err[1] = static_cast<float>(pointErr2);
-        track->angle  = static_cast<float>(ang);
-        track->c      = static_cast<float>(c);
-        track->median = static_cast<float>(median / angFactor);
-      }
-      else {
-        track->type = Undef;
-      }
-    }
   }
-
 }
 #endif
 
-#define PI 3.14159265
-void Tracker::defineTrackType(std::vector<std::shared_ptr<Track>> & tracks, double angThr, double angFactor, double errThr) {
-  //const intrinsic camera matrix
-  K = cv::Mat::zeros(3, 3, CV_64F);
-  //kinect
-  K.at<double>(0, 0) = 522.97697;
-  K.at<double>(0, 2) = 318.47217;
-  K.at<double>(1, 1) = 522.58746;
-  K.at<double>(1, 2) = 256.49968;
-  K.at<double>(2, 2) = 1.0;
-  //webcam
-  /*K.at<double>(0, 0) = 457.62253;
-  K.at<double>(0, 2) = 326.11843;
-  K.at<double>(1, 1) = 457.62253;
-  K.at<double>(1, 2) = 177.17820;
-  K.at<double>(2, 2) = 1.0;*/
-
-  for(auto track: tracks)
-  {
-    if (!projMatrCurr.empty() && track->history.size() > 3) {
-      std::shared_ptr<TrackedPoint> firstPoint, lastPoint;
-
-      //search first track point with defined frame's R, t 
-      int pfId;
-      for (pfId = 0; pfId < track->history.size(); pfId++)
-      {
-        auto pfFrameId = track->history[pfId]->frameId;
-        if (trajArchiver.poseProvider.poses.count(pfFrameId))
-          break;
-      }
-
-      firstPoint  = track->history[pfId];
-      lastPoint   = track->history.back();
-
-      if (firstPoint->frameId < lastPoint->frameId)
-      {
-        cv::Mat projMatr1 = trajArchiver.poseProvider.poses[firstPoint->frameId];
-
-        cv::Mat projPoint1(1, 1, CV_64FC2);
-        projPoint1.at<cv::Vec3d>(0, 0)[0] = firstPoint->location.x;
-        projPoint1.at<cv::Vec3d>(0, 0)[1] = firstPoint->location.y;
-        //std::cerr << "First track point. FrameId " << firstPoint->frameId << ":" << firstPoint->location << std::endl;
-
-        cv::Mat projPoint2(1, 1, CV_64FC2);
-        projPoint2.at<cv::Vec3d>(0, 0)[0] = lastPoint->location.x;
-        projPoint2.at<cv::Vec3d>(0, 0)[1] = lastPoint->location.y;
-        //std::cerr << "Last track point. FrameId " << lastPoint->frameId << ":" << lastPoint->location << std::endl;
-
-        cv::Mat point4D;
-        cv::triangulatePoints(K*projMatr1, K*projMatrCurr, projPoint1, projPoint2, point4D);
-
-        //std::cerr << "4D " << point4D << std::endl;
-        cv::Mat pr1 = projMatr1*point4D;
-        cv::Mat pr2 = projMatrCurr*point4D;
-
-        double cosa = cv::norm(pr1.t()*pr2) / (norm(pr1)*norm(pr2));
-        double ang = acos(cosa) * 180.0 / PI;
-        //std::cerr << "angle " << ang << std::endl;
-
-        double a = cv::norm(pr1);
-        double b = cv::norm(pr2);
-        double c = cv::norm(pr1 - pr2);
-        double median = pow(2 * pow(a, 2) + 2 * pow(b, 2) - pow(c, 2), 0.5) / 2;
-        //std::cerr << "median " << median << std::endl;
-        //std::cerr << "c "      << c      << std::endl;
-
-        if (ang > angThr && c > median / angFactor) {
-          const cv::Rect roi = cv::Rect(0, 0, 1, 2);
-          cv::Mat pr1_   = K*pr1;
-          cv::Mat pr2_   = K*pr2;
-          //std::cerr << "projected " << pr1_  << " " << pr2_ << std::endl;
-          //std::cerr << "projected " << pr1_ / pr1_.at<double>(2, 0) << " " << pr2_ / pr2_.at<double>(2, 0) << std::endl;
-
-          cv::Mat_<double> cpr1 = (pr1_ / pr1_.at<double>(2, 0))(roi);
-          cv::Mat_<double> cpr2 = (pr2_ / pr2_.at<double>(2, 0))(roi);
-          cv::Mat_<double> opr1 = cv::Mat(firstPoint->location);
-          cv::Mat_<double> opr2 = cv::Mat(lastPoint->location);
-
-          double pointErr1 = cv::norm(opr1 - cpr1);
-          double pointErr2 = cv::norm(opr2 - cpr2);
-          //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
-
-          //if ((pointErr1 + pointErr2 + pointErrmid) / 3 < errThr)
-          //if ((pointErr1 + pointErr2) / 2 < errThr)
-          if (std::max(pointErr1, pointErr2) < errThr)
-          {
-            track->type = Static;
-          }
-          else
-          {
-            track->type = Dynamic;
-          }
-          track->err[0] = static_cast<float>(pointErr1);
-          track->err[1] = static_cast<float>(pointErr2);
-          track->angle  = static_cast<float>(ang);
-          track->c      = static_cast<float>(c);
-          track->median = static_cast<float>(median / angFactor);
-        }
-        else {
-          track->type = Undef;
-        }
-      }
-    }
-  }
-}
 
 char imgn[100];
 
@@ -399,15 +279,16 @@ void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> cur
   long double FNErr = 0;
   long double TPErr = 0;
   long double TNErr = 0;
+
   for (auto t : curTracks) {
     cv::Point2f p = t->bestCandidate->location;
     //dyn if 255
     bool dyn = mask.at<uchar>(trunc(p.y), trunc(p.x));
 
-           if (!dyn && t->type == Static)  {
+    if (!dyn && t->type == Static)  {
       TP++;
       TPErr += (t->err[0] + t->err[1])/2;
-     } else if ( dyn && t->type == Dynamic) {
+    } else if ( dyn && t->type == Dynamic) {
       TN++;
       TNErr += (t->err[0] + t->err[1])/2;
     } else if ( dyn && t->type == Static)  {
@@ -432,7 +313,6 @@ void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> cur
     trackOut << t->median;
     trackOut << std::endl;*/
   }
-
   /*trackOut << "errThr: " << i << std::endl;
   trackOut << "mask static  \ algo static  (TP): " << TP << std::endl;
   trackOut << "mask dynamic \ algo dynamic (TN): " << TN << std::endl;
@@ -459,18 +339,11 @@ void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> cur
 
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg) {
   curTracks.clear();
-  projMatrCurr.release();
 
   cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
 
   if (prevTracks.size() > 0)
   {
-    //get curr frame camera pose
-    if (trajArchiver.poseProvider.poses.count(frameInd))
-    {
-      projMatrCurr = trajArchiver.poseProvider.poses[frameInd];
-    }
-
     sprintf(imgn, "../../dynmasks/%06d.png", frameInd);
     cv::Mat mask = cv::imread(imgn, CV_8U);
 
@@ -536,7 +409,9 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
         sprintf(imgn, "%stt%d-max-angFact%d.txt", pathToTrackTypes.c_str(), frameInd, 10);
         std::ofstream trackOut(imgn);
         for (auto errThr = 0; errThr < 200; errThr += 5) {
-          defineTrackType(curTracks, 2, angFact, errThr);
+          for (auto track : curTracks) {
+            defineTrackType(track, errThr);
+          }
           checkError(trackOut, curTracks, frameInd, mask, errThr);
         }
       }
