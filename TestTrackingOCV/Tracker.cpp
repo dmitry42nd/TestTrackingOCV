@@ -5,10 +5,14 @@
 
 #include "opencv2/video/tracking.hpp"
 
+
+
 Tracker::Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize) :
   trajArchiver(trajArchiver),
   imSize(imSize)
 {
+  errs = std::ofstream("errors");
+
   mcnt = 0;
   m_tracksFrame = cv::Mat::zeros(imSize, CV_8UC3);
   orb = new cv::ORB(1000, 1.2, 8, 31, 0, 2, cv::ORB::FAST_SCORE, 31);
@@ -210,190 +214,202 @@ void printCamera(double * camera, int id) {
   std::cout << std::endl;
 }
 
-//ceres-solver
+cv::Mat K, dist;
+void makeCamera(CameraPose const& cp, double* camera) {
+  cv::Mat_<double> Rv;
+  cv::Rodrigues(cp.R, Rv);
+
+  for (auto i = 0; i < 3; i++) {
+    camera[i] = Rv.at<double>(i, 0);
+  }
+  for (auto i = 0; i < 3; i++) {
+    camera[i+3] = cp.t.at<double>(i, 0);
+  }
+  //printCamera(camera, 1);
+}
+
 void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
   //kinect
-  cv::Mat K = cv::Mat::zeros(3, 3, CV_64F);
+  K = cv::Mat::zeros(3, 3, CV_64F);
   K.at<double>(0, 0) = 522.97697;
   K.at<double>(0, 2) = 318.47217;
   K.at<double>(1, 1) = 522.58746;
   K.at<double>(1, 2) = 256.49968;
   K.at<double>(2, 2) = 1.0;
-  cv::Mat_<double> dist(1,4);
-  dist << 0.18962,-0.38214, 0, 0;
+  double dist_data[4] = {0.18962, -0.38214, 0, 0};
+  dist = cv::Mat(1,4, CV_64F, dist_data);
 
   double *point = new double[3];
-  point[0] = 0;
-  point[1] = 0;
-  point[2] = 0;
 
   if (track->history.size() > 3) {
     ceres::Problem problem;
 
-    std::shared_ptr<TrackedPoint> firstPoint, lastPoint;
-    CameraPose cp1, cp2;
+    std::shared_ptr<TrackedPoint> firstPoint, lastPoint, midPoint;
+    CameraPose cp1, cp2, cp3;
     int pfId;
-    for (pfId = 0; pfId < track->history.size(); pfId++)
+    for (pfId = 0; pfId < track->history.size()/2; pfId++)
     {
       auto pfFrameId = track->history[pfId]->frameId;
       trajArchiver.poseProvider.getPoseForFrame(cp1, pfFrameId);
       if (cv::countNonZero(cp1.R) && cv::countNonZero(cp1.t))
         break;
     }
-    firstPoint  = track->history[pfId];
-    lastPoint   = track->history.back();
+
+    int pmId;
+    for (pmId = pmId < track->history.size()/2; pmId < track->history.size(); pmId++)
+    {
+      auto pmFrameId = track->history[pmId]->frameId;
+      trajArchiver.poseProvider.getPoseForFrame(cp3, pmFrameId);
+      if (cv::countNonZero(cp3.R) && cv::countNonZero(cp3.t))
+        break;
+    }
+
+    firstPoint = track->history[pfId];
+    midPoint   = track->history[pmId];
+
+    lastPoint  = track->history.back();
     trajArchiver.poseProvider.getPoseForFrame(cp2, lastPoint->frameId);
 
 
     double *camera1 = new double[6];
-    //get R t
-    cv::Mat_<double> Rv1;
-    cv::Rodrigues(cp1.R, Rv1);
-
-    for (auto i = 0; i < 3; i++) {
-      camera1[i] = Rv1.at<double>(i, 0);
-    }
-    for (auto i = 0; i < 3; i++) {
-      camera1[i+3] = cp1.t.at<double>(i, 0);
-    }
-    printCamera(camera1, 1);
+    makeCamera(cp1, camera1);
     cv::Point2d unPoint1;
     undistPoint(firstPoint->location, K, dist, unPoint1);
-
-
     ceres::CostFunction* cost_function1 = TriangulateError::Create(unPoint1.x, unPoint1.y, camera1);
     problem.AddResidualBlock(cost_function1, NULL, point);
 
-
     double *camera2 = new double[6];
-    //get R t
-    cv::Mat_<double> Rv2;
-    cv::Rodrigues(cp2.R, Rv2);
-
-    for (auto i = 0; i < 3; i++) {
-      camera2[i] = Rv2.at<double>(i, 0);
-    }
-    for (auto i = 0; i < 3; i++) {
-      camera2[i+3] = cp2.t.at<double>(i, 0);
-    }
-    printCamera(camera2, 2);
-
+    makeCamera(cp2, camera2);
     cv::Point2d unPoint2;
     undistPoint(lastPoint->location, K, dist, unPoint2);
-
     ceres::CostFunction* cost_function2 = TriangulateError::Create(unPoint2.x, unPoint2.y, camera2);
     problem.AddResidualBlock(cost_function2, NULL, point);
 
+    double *camera3 = new double[6];
+    makeCamera(cp3, camera3);
+
+
+    cv::Mat projMatr1 = trajArchiver.poseProvider.poses[firstPoint->frameId];
+    cv::Mat projMatrCurr = trajArchiver.poseProvider.poses[lastPoint->frameId];
+    cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
+    undistProjPoint1.at<cv::Vec2d>(0,0)[0] = unPoint1.x;
+    undistProjPoint1.at<cv::Vec2d>(0,0)[1] = unPoint1.y;
+
+    cv::Mat undistProjPoint2 = cv::Mat(1,1,CV_64FC2);
+    undistProjPoint2.at<cv::Vec2d>(0,0)[0] = unPoint2.x;
+    undistProjPoint2.at<cv::Vec2d>(0,0)[1] = unPoint2.y;
+    cv::Mat point4D;
+    cv::triangulatePoints(projMatr1, projMatrCurr, undistProjPoint1, undistProjPoint2, point4D);
+    point[0] = point4D.at<double>(0,0)/point4D.at<double>(3,0);
+    point[1] = point4D.at<double>(1,0)/point4D.at<double>(3,0);
+    point[2] = point4D.at<double>(2,0)/point4D.at<double>(3,0);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.minimizer_progress_to_stdout = true;
+    options.max_num_iterations = 15;
+    options.linear_solver_type = ceres::DENSE_QR;
+    //options.minimizer_progress_to_stdout = false;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << "\n";
+    //std::cout << summary.FullReport() << "\n";
+    //std::cout << "final p: " <<  point[0] << " " <<  point[1] << " " <<  point[2]<< "\n";
 
-    std::cout << "final p: " <<  point[0] << " " <<  point[1] << " " <<  point[2]<< "\n";
-    printCamera(camera1, 1);
-    printCamera(camera2, 2);
-
-    double p[3];
-    p[0] = 0; p[1] = 0; p[2] = 0;
+    double p[3], xp, yp;
     ceres::AngleAxisRotatePoint(camera1, point, p);
     p[0] += camera1[3]; p[1] += camera1[4]; p[2] += camera1[5];
-    double xp = - p[0] / p[2];
-    double yp = - p[1] / p[2];
+    xp = - p[0] / p[2];
+    yp = - p[1] / p[2];
+    std::vector<cv::Point3f> vp1;
+    std::vector<cv::Point2f> uvp1;
+    vp1.push_back(cv::Point3f(xp,yp,1));
+    cv::projectPoints(vp1, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp1);
+    //std::cout << "observed_norm1: " <<  firstPoint->location << "\n";
+    //std::cout << "predicted_norm1: " <<  uvp1[0] << "\n";
 
-    std::cout << "observed_norm1: " <<  unPoint1.x << " " <<  unPoint1.y << "\n";
-    std::cout << "predicted_norm: " <<  xp << " " <<  yp << "\n";
-
-
-    //p[0] = 0; p[1] = 0; p[2] = 0;
     ceres::AngleAxisRotatePoint(camera2, point, p);
     p[0] += camera2[3]; p[1] += camera2[4]; p[2] += camera2[5];
     xp = - p[0] / p[2];
     yp = - p[1] / p[2];
-    std::cout << "observed_norm2: " <<  unPoint2.x << " " <<  unPoint2.y << "\n";
-    std::cout << "predicted_norm: " <<  xp << " " <<  yp << "\n";
+    std::vector<cv::Point3f> vp2;
+    std::vector<cv::Point2f> uvp2;
+    vp2.push_back(cv::Point3f(xp,yp,1));
+    cv::projectPoints(vp2, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp2);
+    //std::cout << "observed_norm2: " <<  lastPoint->location << "\n";
+    //std::cout << "predicted_norm2: " <<  uvp2[0] << "\n";
+    //std::cout << "\n";
+
+    ceres::AngleAxisRotatePoint(camera3, point, p);
+    p[0] += camera3[3]; p[1] += camera3[4]; p[2] += camera3[5];
+    xp = - p[0] / p[2];
+    yp = - p[1] / p[2];
+    std::vector<cv::Point3f> vp3;
+    std::vector<cv::Point2f> uvp3;
+    vp3.push_back(cv::Point3f(xp,yp,1));
+    cv::projectPoints(vp3, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp3);
+
+
+    double pointErr1 = cv::norm(cv::Mat(uvp1[0] - firstPoint->location));
+    double pointErr2 = cv::norm(cv::Mat(uvp2[0] - lastPoint->location));
+    double pointErr3 = cv::norm(cv::Mat(uvp3[0] - midPoint->location));
+    //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
+
+    double mean2Error = (pointErr1 + pointErr2) / 2;
+    double maxError   = std::max(pointErr1, pointErr2);
+    double mean3Error = (pointErr1 + pointErr2 + pointErr3) / 2;
+
+    //if ((pointErr1 + pointErr2 + pointErrmid) / 3 < errThr)
+    if (mean3Error < errThr)
+    {
+      track->type = Static;
+    }
+    else
+    {
+      track->type = Dynamic;
+    }
+
+    track->err[0] = mean2Error;
+    track->err[1] = maxError;
+    track->err[2] = mean3Error;
 
     delete[] point;
     delete[] camera1;
     delete[] camera2;
-    /*
-    std::cerr << "actual0: " <<  double(track->bestCandidate->location.x) << " " <<  double(track->bestCandidate->location.y) << "\n";
-    std::cerr << "predict: " <<  predicted_x << " " <<  predicted_y << "\n";
-    std::cerr << "res    : " <<  residuals[0] << " " <<  residuals[1] << "\n";
-    */
-
   }
 }
 #endif
 
 
-void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> curTracks,
-                int const frameInd, cv::Mat const & mask, int errThr)
+void Tracker::generateRocData(std::ofstream &file, int maxThrErr)
 {
-  int  FN = 0; int  TN = 0; int  TP = 0; int  FP = 0; int  U = 0;
-  long double FPErr = 0;
-  long double FNErr = 0;
-  long double TPErr = 0;
-  long double TNErr = 0;
+  for (auto errThr = 0; errThr < maxThrErr; errThr += 5) {
+    int TP = 0;
+    int TN = 0;
+    int FP = 0;
+    int FN = 0;
 
-  for (auto t : curTracks) {
-    cv::Point2f p = t->bestCandidate->location;
-    //dyn if 255
-    bool dyn = mask.at<uchar>(trunc(p.y), trunc(p.x));
-
-    if (!dyn && t->type == Static)  {
-      TP++;
-      TPErr += (t->err[0] + t->err[1])/2;
-    } else if ( dyn && t->type == Dynamic) {
-      TN++;
-      TNErr += (t->err[0] + t->err[1])/2;
-    } else if ( dyn && t->type == Static)  {
-      FP++;
-      FPErr += (t->err[0] + t->err[1])/2;
-    } else if (!dyn && t->type == Dynamic) {
-      FN++;
-      FNErr += (t->err[0] + t->err[1])/2;
-    } else if (t->type == Undef) {
-      U++;
+    for (std::pair<double, bool> er : errs_v) {
+      if (er.first > errThr) { // detect as dynamic
+        if (er.second) {
+          TN++;
+        } else {
+          FN++;
+        }
+      }
+      else {
+        if (er.second) {
+          FP++;
+        } else {
+          TP++;
+        }
+      }
     }
 
-    /*trackOut << "x\t y\t type(algorithm)\t type(mask) err1\t err2\t ang c median/10\n";
-    trackOut << t->bestCandidate->location.x << "\t ";
-    trackOut << t->bestCandidate->location.y << "\t ";
-    trackOut << (t->type == Static ? "Static" : (t->type == Dynamic ? "Dynamic" : "Undef")) << "\t ";
-    trackOut << (!dyn ? "Static" : "Dynamic") << "\t ";
-    trackOut << t->err1 << "\t ";
-    trackOut << t->err2 << "\t ";
-    trackOut << t->angle << "\t ";
-    trackOut << t->c << "\t ";
-    trackOut << t->median;
-    trackOut << std::endl;*/
+    float TPR = TP / (float)(TP + FN);
+    float FPR = FP / (float)(TN + FP);
+    file << FPR << ", " << TPR  << std::endl;
   }
-  /*trackOut << "errThr: " << i << std::endl;
-  trackOut << "mask static  \ algo static  (TP): " << TP << std::endl;
-  trackOut << "mask dynamic \ algo dynamic (TN): " << TN << std::endl;
-  trackOut << "mask dynamic \ algo static  (FP): " << FP << std::endl;
-  trackOut << "mask static  \ algo dynamic (FN): " << FN << std::endl;
-  trackOut << "Undefinded                   (U): " << U << std::endl;*/
-
-  std::cerr << "errThr: " << errThr << std::endl;
-  std::cerr << "mask static  / algo static  (TP): " << TP << std::endl;
-  std::cerr << "mask dynamic / algo dynamic (TN): " << TN << std::endl;
-  std::cerr << "mask dynamic / algo static  (FP): " << FP << std::endl;
-  std::cerr << "mask static  / algo dynamic (FN): " << FN << std::endl;
-  std::cerr << "Undefinded                   (U): " << U << std::endl;
-  std::cerr << "TP projective error             : " << TPErr/TP << std::endl;
-  std::cerr << "TN projective error             : " << TNErr/TN << std::endl;
-  std::cerr << "FP projective error             : " << FPErr/FP << std::endl;
-  std::cerr << "FN projective error             : " << FNErr/FN << std::endl;
-  std::cerr << std::endl;
-
-  float TPR = TP / (float)(TP + FN);
-  float FPR = FP / (float)(TN + FP);
-  trackOut << FPR << ", " << TPR  << std::endl;
 }
+
+
 char imgn[100];
 
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg) {
@@ -444,12 +460,26 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
         prevTracks[i]->history.push_back(std::make_shared<TrackedPoint>(nextCorners[i], frameInd, 0, cv::KeyPoint(), cv::Mat(), depthVal));
         prevTracks[i]->bestCandidate = prevTracks[i]->history.back();
+        defineTrackType(prevTracks[i], 120);
 
-#if 1
-        cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
-        cv::line(outputFrame,   prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
+        if(!mask.empty()) {
+          bool dyn = mask.at<uchar>(trunc(prevTracks[i]->bestCandidate->location.y),
+                                    trunc(prevTracks[i]->bestCandidate->location.x));
+          double curErrType = prevTracks[i]->err[2];
+          errs_v.push_back(std::pair<double, bool>(curErrType, dyn));
+        }
+
+        cv::Scalar color;
+        if (prevTracks[i]->type == Static)
+          color = cv::Scalar(200, 200, 200);
+        else if (prevTracks[i]->type == Dynamic)
+          color = cv::Scalar(0, 200, 0);
+        else //undef
+          color = cv::Scalar(200, 0, 200);
+
+        cv::circle(outputFrame, prevCorners[i], 5, color, -1);
+        cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
         cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
-#endif
 
         curTracks.push_back(prevTracks[i]);
       }
@@ -461,36 +491,6 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
           trajArchiver.archiveTrajectorySimple(prevTracks[i]);
         }
       }
-    }
-
-    if (!mask.empty()) {
-      for (auto angFact = 10; angFact < 11; angFact += 4) {
-        sprintf(imgn, "%stt%d-max-angFact%d.txt", pathToTrackTypes.c_str(), frameInd, 10);
-        std::ofstream trackOut(imgn);
-        for (auto errThr = 0; errThr < 200; errThr += 5) {
-          for (auto track : curTracks) {
-            defineTrackType(track, errThr);
-          }
-          checkError(trackOut, curTracks, frameInd, mask, errThr);
-        }
-      }
-
-#if 1
-      for (size_t i = 0; i < curTracks.size(); i++)
-      {
-        cv::Scalar color;
-        if (curTracks[i]->type == Static)
-          color = cv::Scalar(200, 200, 200);
-        else if (curTracks[i]->type == Dynamic)
-          color = cv::Scalar(0, 200, 0);
-        else //undef
-          color = cv::Scalar(200, 0, 200);
-
-        cv::circle(outputFrame, prevCorners[i], 5, color, -1);
-        cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
-        cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
-      }
-#endif
     }
 
   }

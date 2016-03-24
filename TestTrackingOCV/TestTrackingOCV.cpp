@@ -234,7 +234,7 @@ int main()
       }
     }
 
-#define ID_SHIFT 654
+#define ID_SHIFT 601
     std::cout << fName << std::endl;
     if (boost::filesystem::exists(fName))
     {
@@ -257,6 +257,9 @@ int main()
 
   std::string pathToSave = "../../trackLogFull/";
   tracker.saveAllTracks(pathToSave);
+
+  std::ofstream trackOut("../../tracktypes/tt-mean3-gen.txt");
+  tracker.generateRocData(trackOut, 300);
 
   fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
   fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / vRgb.size());

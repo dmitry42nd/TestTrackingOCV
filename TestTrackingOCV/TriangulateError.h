@@ -12,15 +12,19 @@ struct TriangulateError {
   template <typename T>
   bool operator()(const T* const point,
                   T* residuals) const {
-    // camera[0,1,2] are the angle-axis rotation.
     T p[3];
+
+    //very important part!
     T rot[3];
     rot[0] = T(camera[0]);
     rot[1] = T(camera[1]);
     rot[2] = T(camera[2]);
     ceres::AngleAxisRotatePoint(rot, point, p);
+
     // camera[3,4,5] are the translation.
-    p[0] += T(camera[3]); p[1] += T(camera[4]); p[2] += T(camera[5]);
+    p[0] += T(camera[3]);
+    p[1] += T(camera[4]);
+    p[2] += T(camera[5]);
 
     T xp = - p[0] / p[2];
     T yp = - p[1] / p[2];

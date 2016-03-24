@@ -8,6 +8,8 @@ public:
 	Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize);
   Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize, std::string pathToTrackTypes);
 
+	void generateRocData(std::ofstream &file, int maxThrErr);
+
   void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
   void detectPointsOrb(int indX, int indY, cv::Mat & m_nextImg, cv::Mat & depthImg, cv::Mat & outputFrame, int frameInd);
 	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
@@ -59,6 +61,12 @@ protected:
 
   std::string pathToTrackTypes;
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
+	void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> curTracks, int const frameInd, cv::Mat const & mask, int errThr);
+	void genCur(std::ofstream & file);
+
+	//sprintf(imgn, "%stt%d-mean2-angFact%d.txt", pathToTrackTypes.c_str(), frameInd, 10);
+	std::ofstream errs;
+	std::vector<std::pair<double,bool>> errs_v;
 
 private:
 	TrajectoryArchiver trajArchiver;
