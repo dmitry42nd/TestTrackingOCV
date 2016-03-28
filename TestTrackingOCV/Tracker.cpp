@@ -241,7 +241,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
 
   double *point = new double[3];
 
-  if (track->history.size() > 3) {
+  if (track->history.size() > 5) {
     ceres::Problem problem;
 
     std::shared_ptr<TrackedPoint> firstPoint, lastPoint, midPoint;
@@ -264,7 +264,9 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
         break;
     }
 
-    firstPoint = track->history[pfId];
+    firstPoint = track->history[pfId+3];
+    trajArchiver.poseProvider.getPoseForFrame(cp1, firstPoint->frameId);
+
     midPoint   = track->history[pmId];
 
     lastPoint  = track->history.back();
@@ -291,6 +293,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
 
     cv::Mat projMatr1 = trajArchiver.poseProvider.poses[firstPoint->frameId];
     cv::Mat projMatrCurr = trajArchiver.poseProvider.poses[lastPoint->frameId];
+
     cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
     undistProjPoint1.at<cv::Vec2d>(0,0)[0] = unPoint1.x;
     undistProjPoint1.at<cv::Vec2d>(0,0)[1] = unPoint1.y;
@@ -298,6 +301,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
     cv::Mat undistProjPoint2 = cv::Mat(1,1,CV_64FC2);
     undistProjPoint2.at<cv::Vec2d>(0,0)[0] = unPoint2.x;
     undistProjPoint2.at<cv::Vec2d>(0,0)[1] = unPoint2.y;
+
     cv::Mat point4D;
     cv::triangulatePoints(projMatr1, projMatrCurr, undistProjPoint1, undistProjPoint2, point4D);
     point[0] = point4D.at<double>(0,0)/point4D.at<double>(3,0);
@@ -346,29 +350,33 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
     vp3.push_back(cv::Point3f(xp,yp,1));
     cv::projectPoints(vp3, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp3);
 
+    double a = cv::norm(cv::Mat(vp1[0]));
+    double b = cv::norm(cv::Mat(vp2[0]));
+    double c = cv::norm(cv::Mat(vp1[0] - vp2[0]));
+    double median = pow(2 * pow(a, 2) + 2 * pow(b, 2) - pow(c, 2), 0.5) / 2;
 
-    double pointErr1 = cv::norm(cv::Mat(uvp1[0] - firstPoint->location));
-    double pointErr2 = cv::norm(cv::Mat(uvp2[0] - lastPoint->location));
-    double pointErr3 = cv::norm(cv::Mat(uvp3[0] - midPoint->location));
-    //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
-
-    double mean2Error = (pointErr1 + pointErr2) / 2;
-    double maxError   = std::max(pointErr1, pointErr2);
-    double mean3Error = (pointErr1 + pointErr2 + pointErr3) / 2;
-
-    //if ((pointErr1 + pointErr2 + pointErrmid) / 3 < errThr)
-    if (mean3Error < errThr)
+    if(20*c > median)
     {
-      track->type = Static;
-    }
-    else
-    {
-      track->type = Dynamic;
-    }
+      double pointErr1 = cv::norm(cv::Mat(uvp1[0] - firstPoint->location));
+      double pointErr2 = cv::norm(cv::Mat(uvp2[0] - lastPoint->location));
+      double pointErr3 = cv::norm(cv::Mat(uvp3[0] - midPoint->location));
+      //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
 
-    track->err[0] = mean2Error;
-    track->err[1] = maxError;
-    track->err[2] = mean3Error;
+      double mean2Error = (pointErr1 + pointErr2) / 2;
+      double maxError = std::max(pointErr1, pointErr2);
+      double mean3Error = (pointErr1 + pointErr2 + pointErr3) / 3;
+
+      if (mean3Error < errThr) {
+        track->type = Static;
+      }
+      else {
+        track->type = Dynamic;
+      }
+
+      track->err[0] = mean2Error;
+      track->err[1] = maxError;
+      track->err[2] = mean3Error;
+    }
 
     delete[] point;
     delete[] camera1;
@@ -412,6 +420,17 @@ void Tracker::generateRocData(std::ofstream &file, int maxThrErr)
 
 char imgn[100];
 
+
+bool ifTracksEnd(int frameId)
+{
+  const int ends[5] = {653, 720, 782, 857, 917};
+  for(auto i : ends)
+  {
+    if(frameId == i) return true;
+  }
+  return false;
+}
+
 void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg) {
   curTracks.clear();
 
@@ -441,7 +460,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
       double trackDist = norm(err);
 
-      if (trackDist < trackThr && status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
+      if (!ifTracksEnd(frameInd) && trackDist < trackThr && status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
         nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows)
       {
         //std::cout << "track depth read " << round(nextCorners[i].y) << " " << round(nextCorners[i].x) << std::endl;
@@ -469,9 +488,9 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       }
       else
       {
-        if (prevTracks[i]->history.size() > 3)
+        if (prevTracks[i]->history.size() > 5)
         {
-          defineTrackType(prevTracks[i], 130);
+          defineTrackType(prevTracks[i], 120);
           lostTracks.push_back(prevTracks[i]);
           trajArchiver.archiveTrajectorySimple(prevTracks[i]);
         }
@@ -480,20 +499,19 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
   }
 
-  cv::Mat boolStats = calcStatsByQuadrant(wx, wy, kltPtThr / (wx *wy), curTracks);
+  if(!ifTracksEnd(frameInd)) {
+    cv::Mat boolStats = calcStatsByQuadrant(wx, wy, kltPtThr / (wx * wy), curTracks);
 
-  for (int i = 0; i < wx; i++)
-  {
-    for (int j = 0; j < wy; j++)
-    {
-      if (boolStats.at<uchar>(j, i) > 0)
-      {
-        detectPoints(i, j, m_nextImg, depthImg, outputFrame, frameInd);
+    for (int i = 0; i < wx; i++) {
+      for (int j = 0; j < wy; j++) {
+        if (boolStats.at<uchar>(j, i) > 0) {
+          detectPoints(i, j, m_nextImg, depthImg, outputFrame, frameInd);
+        }
       }
     }
   }
 
-  if (curTracks.size() < kltPtThr) {}
+  //if (curTracks.size() < kltPtThr) {}
 
   prevTracks = curTracks;
   prevImg = m_nextImg;
@@ -508,14 +526,15 @@ void Tracker::postProcessing(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frame
     for(auto p : track->history) {
       if(p->frameId == frameInd) {
         cv::Scalar color;
-        if (track->type == Static)
+        if (track->type == Static) {
           color = cv::Scalar(200, 200, 200);
+          cv::circle(outputFrame, p->location, 5, color, -1);
+        }
         else if (track->type == Dynamic)
+        {
           color = cv::Scalar(0, 200, 0);
-        else //undef
-          color = cv::Scalar(200, 0, 200);
-
-        cv::circle(outputFrame, p->location, 5, color, -1);
+          cv::circle(outputFrame, p->location, 5, color, -1);
+        }
         break;
       }
     }
