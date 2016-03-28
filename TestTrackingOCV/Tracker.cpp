@@ -460,24 +460,8 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
         prevTracks[i]->history.push_back(std::make_shared<TrackedPoint>(nextCorners[i], frameInd, 0, cv::KeyPoint(), cv::Mat(), depthVal));
         prevTracks[i]->bestCandidate = prevTracks[i]->history.back();
-        defineTrackType(prevTracks[i], 120);
 
-        if(!mask.empty()) {
-          bool dyn = mask.at<uchar>(trunc(prevTracks[i]->bestCandidate->location.y),
-                                    trunc(prevTracks[i]->bestCandidate->location.x));
-          double curErrType = prevTracks[i]->err[2];
-          errs_v.push_back(std::pair<double, bool>(curErrType, dyn));
-        }
-
-        cv::Scalar color;
-        if (prevTracks[i]->type == Static)
-          color = cv::Scalar(200, 200, 200);
-        else if (prevTracks[i]->type == Dynamic)
-          color = cv::Scalar(0, 200, 0);
-        else //undef
-          color = cv::Scalar(200, 0, 200);
-
-        cv::circle(outputFrame, prevCorners[i], 5, color, -1);
+        cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
         cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
         cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
 
@@ -487,6 +471,7 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       {
         if (prevTracks[i]->history.size() > 3)
         {
+          defineTrackType(prevTracks[i], 130);
           lostTracks.push_back(prevTracks[i]);
           trajArchiver.archiveTrajectorySimple(prevTracks[i]);
         }
@@ -512,6 +497,29 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
   prevTracks = curTracks;
   prevImg = m_nextImg;
+}
+
+void Tracker::postProcessing(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg)
+{
+  cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
+  std::cerr << frameInd << std::endl;
+
+  for(auto track : lostTracks) {
+    for(auto p : track->history) {
+      if(p->frameId == frameInd) {
+        cv::Scalar color;
+        if (track->type == Static)
+          color = cv::Scalar(200, 200, 200);
+        else if (track->type == Dynamic)
+          color = cv::Scalar(0, 200, 0);
+        else //undef
+          color = cv::Scalar(200, 0, 200);
+
+        cv::circle(outputFrame, p->location, 5, color, -1);
+        break;
+      }
+    }
+  }
 }
 
 #if 0

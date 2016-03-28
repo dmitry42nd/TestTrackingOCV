@@ -22,6 +22,8 @@ public:
 	void defineTrackType(std::shared_ptr<Track> track, double errThr);
 	//cv::Mat calcGridPointDistribution();
 
+	void postProcessing(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);
+
 	std::vector<cv::KeyPoint> m_prevKeypoints;
 	std::vector<cv::KeyPoint> m_nextKeypoints;
 

@@ -171,6 +171,8 @@ int main()
   std::string depthDebFld = "../../depthDebug/";
   std::string pathToTracksFolder = "../../tracks_6_11/track/";
   std::string pathToStorage = "../../TD_Data/";
+  std::string pathToPostProc = "../../outProc/";
+
   
   std::string pathToCameraPoses = "../../cameraPoses";
   std::string pathToTrackTypes = "../../tracktypes/";
@@ -253,6 +255,41 @@ int main()
     std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
+
+  //
+  std::cerr << "postprocessing stuff\n";
+  dInd = 0;
+  while (!boost::filesystem::is_regular_file(vRgb[dInd]))
+  {
+    dInd++;
+  }
+
+  while (dInd < vRgb.size())
+  {
+    poseProvider.setCurrentFrameNumber(dInd);
+
+    cv::Mat depthImg;
+    std::string fName = vRgb[dInd].string();
+    std::string fNameOnly = vRgb[dInd].filename().string();
+
+    std::cout << fName << std::endl;
+    if (boost::filesystem::exists(fName))
+    {
+      cv::Mat img = cv::imread(fName, 0);
+      cv::Mat outputImg;
+      cv::cvtColor(img, outputImg, CV_GRAY2BGR);
+
+      tracker.postProcessing(img, outputImg, ID_SHIFT + dInd, depthImg);
+
+      std::string fNameOut = pathToPostProc + std::to_string(ID_SHIFT + dInd) + ".bmp";
+      cv::imwrite(fNameOut, outputImg);
+    }
+    std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
+    dInd++;
+  }
+
+
+
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
 
   std::string pathToSave = "../../trackLogFull/";
