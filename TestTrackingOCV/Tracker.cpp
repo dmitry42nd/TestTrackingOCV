@@ -228,6 +228,26 @@ void makeCamera(CameraPose const& cp, double* camera) {
   //printCamera(camera, 1);
 }
 
+
+void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np) {
+  double p[3], xp, yp;
+  ceres::AngleAxisRotatePoint(camera, point, p);
+  p[0] += camera[3];
+  p[1] += camera[4];
+  p[2] += camera[5];
+  xp = -p[0] / p[2];
+  yp = -p[1] / p[2];
+
+  np = cv::Point3f(xp, yp, 1);
+  std::vector<cv::Point3f> vnp;
+  vnp.push_back(np);
+  std::vector<cv::Point2f> vpp;
+
+  cv::projectPoints(vnp, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), K, dist, vpp);
+  pp = vpp[0];
+}
+
+
 void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
   //kinect
   K = cv::Mat::zeros(3, 3, CV_64F);
@@ -241,125 +261,118 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
 
   double *point = new double[3];
 
-  if (track->history.size() > 5) {
+  if (track->history.size() > 10) {
+    #define SAMPLE_SIZE 5
+    #define FIRST_FRAME 5
     ceres::Problem problem;
 
-    std::shared_ptr<TrackedPoint> firstPoint, lastPoint, midPoint;
-    CameraPose cp1, cp2, cp3;
-    int pfId;
-    for (pfId = 0; pfId < track->history.size()/2; pfId++)
+    std::vector<double *> cameras;
+    std::vector<std::shared_ptr<TrackedPoint>> oPoints;
+    std::vector<cv::Point2d> unPoints;
+    std::vector<CameraPose> cameraPoses;
+
+    int trackSize = track->history.size();
+    int sample_size = SAMPLE_SIZE;
+    int step = std::ceil(trackSize / sample_size);
+
+    int pId;
+    for(pId = FIRST_FRAME; pId < trackSize; pId+=step)
     {
-      auto pfFrameId = track->history[pfId]->frameId;
-      trajArchiver.poseProvider.getPoseForFrame(cp1, pfFrameId);
-      if (cv::countNonZero(cp1.R) && cv::countNonZero(cp1.t))
-        break;
+      for (; pId < pId + step; pId++)
+      {
+        CameraPose cp;
+        auto pFrameId = track->history[pId]->frameId;
+        trajArchiver.poseProvider.getPoseForFrame(cp, pFrameId);
+        if (cv::countNonZero(cp.R) && cv::countNonZero(cp.t)) {
+          cameraPoses.push_back(cp);
+          std::shared_ptr<TrackedPoint> op = track->history[pId];
+          oPoints.push_back(op);
+          double *camera = new double[6];
+          cameras.push_back(camera);
+          makeCamera(cp, camera);
+          cv::Point2d unp;
+          undistPoint(op->location, K, dist, unp);
+          unPoints.push_back(unp);
+          ceres::CostFunction* cost_function = TriangulateError::Create(unp.x, unp.y, camera);
+          problem.AddResidualBlock(cost_function, NULL, point);
+
+          break;
+        }
+      }
     }
 
-    int pmId;
-    for (pmId = pmId < track->history.size()/2; pmId < track->history.size(); pmId++)
+    //last frame must have
+    if(pId != trackSize-1)
     {
-      auto pmFrameId = track->history[pmId]->frameId;
-      trajArchiver.poseProvider.getPoseForFrame(cp3, pmFrameId);
-      if (cv::countNonZero(cp3.R) && cv::countNonZero(cp3.t))
-        break;
+      pId = trackSize-1;
+      CameraPose cp;
+      auto pFrameId = track->history[pId]->frameId;
+      trajArchiver.poseProvider.getPoseForFrame(cp, pFrameId);
+      if (cv::countNonZero(cp.R) && cv::countNonZero(cp.t)) {
+        cameraPoses.push_back(cp);
+        std::shared_ptr<TrackedPoint> op = track->history[pId];
+        oPoints.push_back(op);
+        double *camera = new double[6];
+        cameras.push_back(camera);
+        makeCamera(cp, camera);
+        cv::Point2d unp;
+        undistPoint(op->location, K, dist, unp);
+        unPoints.push_back(unp);
+        ceres::CostFunction *cost_function = TriangulateError::Create(unp.x, unp.y, camera);
+        problem.AddResidualBlock(cost_function, NULL, point);
+      }
     }
 
-    firstPoint = track->history[pfId+3];
-    trajArchiver.poseProvider.getPoseForFrame(cp1, firstPoint->frameId);
-
-    midPoint   = track->history[pmId];
-
-    lastPoint  = track->history.back();
-    trajArchiver.poseProvider.getPoseForFrame(cp2, lastPoint->frameId);
-
-
-    double *camera1 = new double[6];
-    makeCamera(cp1, camera1);
-    cv::Point2d unPoint1;
-    undistPoint(firstPoint->location, K, dist, unPoint1);
-    ceres::CostFunction* cost_function1 = TriangulateError::Create(unPoint1.x, unPoint1.y, camera1);
-    problem.AddResidualBlock(cost_function1, NULL, point);
-
-    double *camera2 = new double[6];
-    makeCamera(cp2, camera2);
-    cv::Point2d unPoint2;
-    undistPoint(lastPoint->location, K, dist, unPoint2);
-    ceres::CostFunction* cost_function2 = TriangulateError::Create(unPoint2.x, unPoint2.y, camera2);
-    problem.AddResidualBlock(cost_function2, NULL, point);
-
-    double *camera3 = new double[6];
-    makeCamera(cp3, camera3);
-
-
-    cv::Mat projMatr1 = trajArchiver.poseProvider.poses[firstPoint->frameId];
-    cv::Mat projMatrCurr = trajArchiver.poseProvider.poses[lastPoint->frameId];
+    //get first approach of 3d point
+    cv::Mat projMatrF = trajArchiver.poseProvider.poses[oPoints.front()->frameId];
+    cv::Mat projMatrL = trajArchiver.poseProvider.poses[oPoints.back()->frameId];
 
     cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
-    undistProjPoint1.at<cv::Vec2d>(0,0)[0] = unPoint1.x;
-    undistProjPoint1.at<cv::Vec2d>(0,0)[1] = unPoint1.y;
+    std::vector<cv::Vec2d> vunpF;
+    vunpF.push_back(unPoints.front());
+    std::vector<cv::Vec2d> vunpL;
+    vunpL.push_back(unPoints.back());
 
-    cv::Mat undistProjPoint2 = cv::Mat(1,1,CV_64FC2);
-    undistProjPoint2.at<cv::Vec2d>(0,0)[0] = unPoint2.x;
-    undistProjPoint2.at<cv::Vec2d>(0,0)[1] = unPoint2.y;
+    cv::Vec4d point4D;
+    cv::triangulatePoints(projMatrF, projMatrL, vunpF, vunpL, point4D);
 
-    cv::Mat point4D;
-    cv::triangulatePoints(projMatr1, projMatrCurr, undistProjPoint1, undistProjPoint2, point4D);
-    point[0] = point4D.at<double>(0,0)/point4D.at<double>(3,0);
-    point[1] = point4D.at<double>(1,0)/point4D.at<double>(3,0);
-    point[2] = point4D.at<double>(2,0)/point4D.at<double>(3,0);
+    point[0] = point4D[0]/point4D[3];
+    point[1] = point4D[1]/point4D[3];
+    point[2] = point4D[2]/point4D[3];
 
     ceres::Solver::Options options;
-    options.max_num_iterations = 15;
     options.linear_solver_type = ceres::DENSE_QR;
-    //options.minimizer_progress_to_stdout = false;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    //std::cout << summary.FullReport() << "\n";
     //std::cout << "final p: " <<  point[0] << " " <<  point[1] << " " <<  point[2]<< "\n";
 
-    double p[3], xp, yp;
-    ceres::AngleAxisRotatePoint(camera1, point, p);
-    p[0] += camera1[3]; p[1] += camera1[4]; p[2] += camera1[5];
-    xp = - p[0] / p[2];
-    yp = - p[1] / p[2];
-    std::vector<cv::Point3f> vp1;
-    std::vector<cv::Point2f> uvp1;
-    vp1.push_back(cv::Point3f(xp,yp,1));
-    cv::projectPoints(vp1, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp1);
-    //std::cout << "observed_norm1: " <<  firstPoint->location << "\n";
-    //std::cout << "predicted_norm1: " <<  uvp1[0] << "\n";
+    cv::Point2f ppF;
+    cv::Point3f npF;
+    getProjectionAndNorm(cameras.front(), point, ppF, npF);
 
-    ceres::AngleAxisRotatePoint(camera2, point, p);
-    p[0] += camera2[3]; p[1] += camera2[4]; p[2] += camera2[5];
-    xp = - p[0] / p[2];
-    yp = - p[1] / p[2];
-    std::vector<cv::Point3f> vp2;
-    std::vector<cv::Point2f> uvp2;
-    vp2.push_back(cv::Point3f(xp,yp,1));
-    cv::projectPoints(vp2, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp2);
-    //std::cout << "observed_norm2: " <<  lastPoint->location << "\n";
-    //std::cout << "predicted_norm2: " <<  uvp2[0] << "\n";
-    //std::cout << "\n";
+    cv::Point2f ppL;
+    cv::Point3f npL;
+    getProjectionAndNorm(cameras.back(), point, ppL, npL);
 
-    ceres::AngleAxisRotatePoint(camera3, point, p);
-    p[0] += camera3[3]; p[1] += camera3[4]; p[2] += camera3[5];
-    xp = - p[0] / p[2];
-    yp = - p[1] / p[2];
-    std::vector<cv::Point3f> vp3;
-    std::vector<cv::Point2f> uvp3;
-    vp3.push_back(cv::Point3f(xp,yp,1));
-    cv::projectPoints(vp3, cv::Vec3f(0,0,0), cv::Vec3f(0,0,0), K, dist, uvp3);
+    CameraPose cpM;
+    int pIdM = track->history.size()/2;
+    trajArchiver.poseProvider.getPoseForFrame(cpM, track->history[pIdM]->frameId);
+    double *cameraM = new double[6];
+    makeCamera(cpM, cameraM);
+    cv::Point2f ppM;
+    cv::Point3f npM;//useles
+    getProjectionAndNorm(cameraM, point, ppM, npM);
 
-    double a = cv::norm(cv::Mat(vp1[0]));
-    double b = cv::norm(cv::Mat(vp2[0]));
-    double c = cv::norm(cv::Mat(vp1[0] - vp2[0]));
+    double a = cv::norm(cv::Mat(npF));
+    double b = cv::norm(cv::Mat(npL));
+    double c = cv::norm(cv::Mat(npL - npF));
     double median = pow(2 * pow(a, 2) + 2 * pow(b, 2) - pow(c, 2), 0.5) / 2;
 
     if(20*c > median)
     {
-      double pointErr1 = cv::norm(cv::Mat(uvp1[0] - firstPoint->location));
-      double pointErr2 = cv::norm(cv::Mat(uvp2[0] - lastPoint->location));
-      double pointErr3 = cv::norm(cv::Mat(uvp3[0] - midPoint->location));
+      double pointErr1 = cv::norm(cv::Mat(ppF - oPoints.front()->location));
+      double pointErr2 = cv::norm(cv::Mat(ppM - track->history[pIdM]->location));
+      double pointErr3 = cv::norm(cv::Mat(ppL - oPoints.back()->location));
       //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
 
       double mean2Error = (pointErr1 + pointErr2) / 2;
@@ -379,8 +392,9 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
     }
 
     delete[] point;
-    delete[] camera1;
-    delete[] camera2;
+    for(auto camera : cameras) {
+      delete[] camera;
+    }
   }
 }
 #endif
@@ -417,10 +431,6 @@ void Tracker::generateRocData(std::ofstream &file, int maxThrErr)
   }
 }
 
-
-char imgn[100];
-
-
 bool ifTracksEnd(int frameId)
 {
   const int ends[5] = {653, 720, 782, 857, 917};
@@ -438,9 +448,6 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
   if (prevTracks.size() > 0)
   {
-    sprintf(imgn, "../../dynmasks/%06d.png", frameInd);
-    cv::Mat mask = cv::imread(imgn, CV_8U);
-
     std::vector<cv::Point2f> prevCorners;
     for (auto &p : prevTracks)
     {
@@ -488,9 +495,9 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       }
       else
       {
-        if (prevTracks[i]->history.size() > 5)
+        if (prevTracks[i]->history.size() > 10)
         {
-          defineTrackType(prevTracks[i], 120);
+          defineTrackType(prevTracks[i], 80);
           lostTracks.push_back(prevTracks[i]);
           trajArchiver.archiveTrajectorySimple(prevTracks[i]);
         }

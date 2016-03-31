@@ -150,15 +150,18 @@ typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort
 int main()
 {
 #if 0
-  double data[12] = {1,2,3,4,5,6,7,8,9,10,11,12};
-  cv::Mat pose = cv::Mat(3,4,CV_64F, data);
-  std::cout << pose << "\n";
-  CameraPose cameraPose;
-  cameraPose.R = pose(cv::Rect(0, 0, 3, 3));
-  cameraPose.t = pose(cv::Rect(3, 0, 1, 3));
-  std::cout << cameraPose.R << "\n";
-  std::cout << cameraPose.t << "\n";
-  
+  int size = 13;
+  int sample_size = 2;
+  int step = 13 / 2;
+
+  int i;
+  for(i = 3; i < size; i+=step)
+  {
+    std::cerr << i << std::endl;
+
+  }
+  //last frame must have?
+  if(i != size-1) std::cerr << size-1 << std::endl;
 #else
   clock_t tStart = clock();
 
