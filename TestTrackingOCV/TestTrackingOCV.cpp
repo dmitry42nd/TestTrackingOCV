@@ -259,7 +259,7 @@ int main()
     dInd++;
   }
 
-  //
+#if 0
   std::cerr << "postprocessing stuff\n";
   dInd = 0;
   while (!boost::filesystem::is_regular_file(vRgb[dInd]))
@@ -282,7 +282,7 @@ int main()
       cv::Mat outputImg;
       cv::cvtColor(img, outputImg, CV_GRAY2BGR);
 
-      tracker.postProcessing(img, outputImg, ID_SHIFT + dInd, depthImg);
+      tracker.drawFinalPointsTypes(img, outputImg, ID_SHIFT + dInd, depthImg);
 
       std::string fNameOut = pathToPostProc + std::to_string(ID_SHIFT + dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
@@ -290,16 +290,40 @@ int main()
     std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
+#endif
 
+  std::cerr << "build tracks\n";
+  dInd = 0;
+  while (!boost::filesystem::is_regular_file(vRgb[dInd]))
+  {
+    dInd++;
+  }
 
+  while (dInd < vRgb.size())
+  {
+    poseProvider.setCurrentFrameNumber(dInd);
+
+    std::string fName = vRgb[dInd].string();
+    std::string fNameOnly = vRgb[dInd].filename().string();
+
+    std::cout << fName << std::endl;
+    if (boost::filesystem::exists(fName))
+    {
+      cv::Mat img = cv::imread(fName, 0);
+      cv::Mat outputImg;
+      cv::cvtColor(img, outputImg, CV_GRAY2BGR);
+
+      tracker.buildTracks(img, outputImg, ID_SHIFT + dInd);
+
+    }
+    std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
+    dInd++;
+  }
 
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
 
   std::string pathToSave = "../../trackLogFull/";
   tracker.saveAllTracks(pathToSave);
-
-  std::ofstream trackOut("../../tracktypes/tt-mean3-gen.txt");
-  tracker.generateRocData(trackOut, 300);
 
   fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
   fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / vRgb.size());

@@ -8,21 +8,15 @@ public:
 	Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize);
   Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize, std::string pathToTrackTypes);
 
-	void generateRocData(std::ofstream &file, int maxThrErr);
-
+	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);
   void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
   void detectPointsOrb(int indX, int indY, cv::Mat & m_nextImg, cv::Mat & depthImg, cv::Mat & outputFrame, int frameInd);
-	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
+	void generateRocData(std::ofstream &file, int maxThrErr);
 	void saveAllTracks(std::string& pathToSaveFolder);
-	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);	
-	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
-	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
-  //void defineTrackType(std::shared_ptr<Track> & track);
+	void drawFinalPointsTypes(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd, cv::Mat &depthImg);
+	void buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd);
 
-	void defineTrackType(std::shared_ptr<Track> track, double errThr);
 	//cv::Mat calcGridPointDistribution();
-
-	void postProcessing(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);
 
 	std::vector<cv::KeyPoint> m_prevKeypoints;
 	std::vector<cv::KeyPoint> m_nextKeypoints;
@@ -34,17 +28,13 @@ public:
 	cv::BFMatcher *m_orbMatcher;
 	cv::ORB *orb;
 
-	std::vector<std::shared_ptr<Track>> prevTracks, curTracks;
-
-	std::vector<std::shared_ptr<Track>> lostTracks;
+	std::vector<std::shared_ptr<Track>> prevTracks, curTracks, lostTracks;
 
 	int kltPtThr = 200;
 	cv::Mat prevImg;
 	int wx, wy;
 	std::vector<std::vector<cv::Mat>> detMasks;
 	cv::Size imSize;
-
-	cv::FastFeatureDetector *fastDetector;
 
 	double dfx = 567.6;
 	double dfy = 570.2;
@@ -61,17 +51,17 @@ public:
 protected:
   typedef std::pair<int, int> Coords;
 
-  std::string pathToTrackTypes;
+	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
+	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
+	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
-	void checkError(std::ofstream& trackOut, std::vector<std::shared_ptr<Track>> curTracks, int const frameInd, cv::Mat const & mask, int errThr);
-	void genCur(std::ofstream & file);
+	void defineTrackType(std::shared_ptr<Track> track, double errThr);
 
-	//sprintf(imgn, "%stt%d-mean2-angFact%d.txt", pathToTrackTypes.c_str(), frameInd, 10);
-	std::ofstream errs;
+  std::string pathToTrackTypes;
 	std::vector<std::pair<double,bool>> errs_v;
+	cv::Ptr<cv::FastFeatureDetector> fastDetector;
 
 private:
 	TrajectoryArchiver trajArchiver;
-  int mcnt;
 };
 

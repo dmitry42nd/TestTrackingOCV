@@ -4,6 +4,9 @@ project(TestTrackingOCV)
 find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
 
+find_package(OpenCV 3 REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 set(SOURCE_FILES
@@ -29,8 +32,6 @@ set(SOURCE_FILES
 
 add_executable(TestTrackingOCV ${SOURCE_FILES})
 
-#link_directories(/usr/local/lib /usr/lib/x86_64-linux-gnu/)
 TARGET_LINK_LIBRARIES(TestTrackingOCV ${CERES_LIBRARIES})
-TARGET_LINK_LIBRARIES(TestTrackingOCV
-  opencv_highgui opencv_core opencv_calib3d opencv_features2d opencv_imgproc opencv_legacy opencv_video
-  boost_filesystem boost_system ${EXTERNAL_LIBS})
+TARGET_LINK_LIBRARIES(TestTrackingOCV ${OpenCV_LIBS})
+TARGET_LINK_LIBRARIES(TestTrackingOCV boost_filesystem boost_system ${EXTERNAL_LIBS})
