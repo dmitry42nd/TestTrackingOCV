@@ -6,14 +6,13 @@
 #include "opencv2/video/tracking.hpp"
 
 cv::Mat K, dist;
-
 Tracker::Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize) :
   trajArchiver(trajArchiver),
   imSize(imSize)
 {
   m_tracksFrame = cv::Mat::zeros(imSize, CV_8UC3);
   //orb = new cv::ORB(1000, 1.2, 8, 31, 0, 2, cv::ORB::FAST_SCORE, 31);
-  m_orbMatcher = new cv::BFMatcher(cv::NORM_HAMMING);
+  //m_orbMatcher = new cv::BFMatcher(cv::NORM_HAMMING);
 
   fastDetector = cv::FastFeatureDetector::create(10);
   wx = 2;
@@ -400,38 +399,6 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
 }
 #endif
 
-
-void Tracker::generateRocData(std::ofstream &file, int maxThrErr)
-{
-  for (auto errThr = 0; errThr < maxThrErr; errThr += 5) {
-    int TP = 0;
-    int TN = 0;
-    int FP = 0;
-    int FN = 0;
-
-    for (std::pair<double, bool> er : errs_v) {
-      if (er.first > errThr) { // detect as dynamic
-        if (er.second) {
-          TN++;
-        } else {
-          FN++;
-        }
-      }
-      else {
-        if (er.second) {
-          FP++;
-        } else {
-          TP++;
-        }
-      }
-    }
-
-    float TPR = TP / (float)(TP + FN);
-    float FPR = FP / (float)(TN + FP);
-    file << FPR << ", " << TPR  << std::endl;
-  }
-}
-
 bool ifTracksEnd(int frameId)
 {
   const int ends[5] = {653, 720, 782, 857, 917};
@@ -471,12 +438,9 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       if (!ifTracksEnd(frameInd) && trackDist < trackThr && status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
         nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows)
       {
-        //std::cout << "track depth read " << round(nextCorners[i].y) << " " << round(nextCorners[i].x) << std::endl;
-        //std::cout << nextCorners[i] << std::endl;
         cv::Point2f pt = fillDepthPt(nextCorners[i], ccx, ccy, cfx, cfy, ccx, ccy, cfx, cfy);
         int px, py;
 
-        //std::cout << pt<< std::endl;
         roundCoords(px, py, pt, m_nextImg);
         double depthVal = 0;
         if (pt.x > 0 && pt.y > 0 && pt.x < depthImg.cols && pt.y < depthImg.rows)
@@ -518,8 +482,6 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
     }
   }
 
-  //if (curTracks.size() < kltPtThr) {}
-
   prevTracks = curTracks;
   prevImg = m_nextImg;
 }
@@ -528,9 +490,8 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
 {
   cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
 
-  std::vector<cv::Point2d> points1, points2;
-  std::vector<cv::Point2d> t_points1, t_points2;
-
+  std::vector<cv::Point2d> pointsL, pointsR;
+  //getPointsForFrameInd()
   for(auto track : lostTracks)
   {
     if (track->type == Dynamic)
@@ -542,40 +503,28 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
         {
           cv::Point2d unp1, unp2;
           undistPoint(track->history[p]->location, K, dist, unp1);
-          t_points1.push_back(track->history[p]->location);
-          points1.push_back(unp1);
+          pointsL.push_back(unp1);
           undistPoint(track->history[p + 1]->location, K, dist, unp2);
-          t_points2.push_back(track->history[p+1]->location);
-          points2.push_back(unp2);
+          pointsR.push_back(unp2);
           break;
         }
       }
     }
   }
 
-  if(frameInd >= 773 )
+
+  if(pointsL.size() >= 5 /*&& pointsR.size() >= 5*/)
   {
-    std::cerr << "pew\n";
-    for(auto p : t_points1)
-      std::cerr << p << " ";
-    std::cerr << std::endl;
-    for(auto p : t_points2)
-      std::cerr << p << " ";
-    std::cerr << std::endl;
+    std::cerr << "got " << pointsL.size() << " points for frame pair " << frameInd << " - " << frameInd + 1 << std::endl;
 
-  }
-
-  if(points1.size() >= 5 /*&& points2.size() >= 5*/)
-  {
-    std::cerr << "got " << points1.size() << " points for frame pair " << frameInd << " - " << frameInd + 1 << std::endl;
-
+    //get R, t from frameInd to frameInd + 1
     cv::Mat E = cv::Mat::zeros(3, 3, CV_64F);
-    E = cv::findEssentialMat(points1, points2);//, (522.97697+522.58746)/2, cv::Point2d(318.47217, 256.49968));
+    E = cv::findEssentialMat(pointsL, pointsR);
     std::cerr << E << std::endl;
     cv::Mat R, t;
     if (E.rows == 3 && E.cols == 3)
     {
-      int res = cv::recoverPose(E, points1, points2, R, t);
+      int res = cv::recoverPose(E, pointsL, pointsR, R, t);
       std::cerr << res << std::endl;
       std::cerr << R << std::endl;
       std::cerr << t << std::endl;
@@ -584,7 +533,29 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
     {
       std::cerr << "five point failed\n";
     }
+
+    //get first approach of 3d point
+
+    cv::Mat projMatrF;
+    cv::hconcat(cv::Mat::ones(3,3,CV_64F), cv::Mat::zeros(1,3,CV_64F), projMatrF);
+    cv::Mat projMatrL = trajArchiver.poseProvider.poses[oPoints.back()->frameId];
+
+    cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
+    std::vector<cv::Vec2d> vunpF;
+    vunpF.push_back(unPoints.front());
+    std::vector<cv::Vec2d> vunpL;
+    vunpL.push_back(unPoints.back());
+
+    cv::Vec4d point4D;
+    cv::triangulatePoints(projMatrF, projMatrL, vunpF, vunpL, point4D);
+
+    point[0] = point4D[0]/point4D[3];
+    point[1] = point4D[1]/point4D[3];
+    point[2] = point4D[2]/point4D[3];
+
   }
+
+
 }
 
 
@@ -715,18 +686,16 @@ void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 
 void Tracker::saveAllTracks(std::string& pathToSaveFolder)
 {
-  for (int i = 0; i < prevTracks.size(); i++)
+  std::cout << "Total tracks: " << lostTracks.size() << std::endl;
+
+  int id = 0;
+  for (auto track : lostTracks)
   {
-    lostTracks.push_back(prevTracks[i]);
-  }
-  std::cout << "final size " << lostTracks.size() << std::endl;
-  for (int i = 0; i < lostTracks.size(); i++)
-  {
-    std::ofstream outTrackSave(pathToSaveFolder + std::to_string(i) + ".txt");
-    std::shared_ptr<Track> curTrack = lostTracks[i];
-    for (int hInd = 0; hInd < curTrack->history.size(); hInd++)
+    std::ofstream outTrackSave(pathToSaveFolder + std::to_string(id++) + ".txt");
+    outTrackSave << track->type << " ";
+    for (auto p : track->history)
     {
-      outTrackSave << curTrack->history[hInd]->frameId << " " << curTrack->history[hInd]->location.x << " " << curTrack->history[hInd]->location.y << " " << curTrack->history[hInd]->depth << std::endl;
+      outTrackSave << p->frameId << " " << p->location.x << " " << p->location.y << std::endl;
     }
   }
 }
