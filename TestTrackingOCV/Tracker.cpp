@@ -327,7 +327,6 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
     cv::Mat projMatrF = trajArchiver.poseProvider.poses[oPoints.front()->frameId];
     cv::Mat projMatrL = trajArchiver.poseProvider.poses[oPoints.back()->frameId];
 
-    cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
     std::vector<cv::Vec2d> vunpF;
     vunpF.push_back(unPoints.front());
     std::vector<cv::Vec2d> vunpL;
@@ -490,7 +489,7 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
 {
   cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
 
-  std::vector<cv::Point2d> pointsL, pointsR;
+  std::vector<cv::Point2d> pointsF, pointsL;
   //getPointsForFrameInd()
   for(auto track : lostTracks)
   {
@@ -503,9 +502,9 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
         {
           cv::Point2d unp1, unp2;
           undistPoint(track->history[p]->location, K, dist, unp1);
-          pointsL.push_back(unp1);
+          pointsF.push_back(unp1);
           undistPoint(track->history[p + 1]->location, K, dist, unp2);
-          pointsR.push_back(unp2);
+          pointsL.push_back(unp2);
           break;
         }
       }
@@ -513,18 +512,18 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
   }
 
 
-  if(pointsL.size() >= 5 /*&& pointsR.size() >= 5*/)
+  if(pointsF.size() >= 5 /*&& pointsL.size() >= 5*/)
   {
-    std::cerr << "got " << pointsL.size() << " points for frame pair " << frameInd << " - " << frameInd + 1 << std::endl;
+    std::cerr << "got " << pointsF.size() << " points for frame pair " << frameInd << " - " << frameInd + 1 << std::endl;
 
     //get R, t from frameInd to frameInd + 1
     cv::Mat E = cv::Mat::zeros(3, 3, CV_64F);
-    E = cv::findEssentialMat(pointsL, pointsR);
+    E = cv::findEssentialMat(pointsF, pointsL);
     std::cerr << E << std::endl;
     cv::Mat R, t;
     if (E.rows == 3 && E.cols == 3)
     {
-      int res = cv::recoverPose(E, pointsL, pointsR, R, t);
+      int res = cv::recoverPose(E, pointsF, pointsL, R, t);
       std::cerr << res << std::endl;
       std::cerr << R << std::endl;
       std::cerr << t << std::endl;
@@ -534,24 +533,22 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
       std::cerr << "five point failed\n";
     }
 
-    //get first approach of 3d point
 
     cv::Mat projMatrF;
     cv::hconcat(cv::Mat::ones(3,3,CV_64F), cv::Mat::zeros(1,3,CV_64F), projMatrF);
-    cv::Mat projMatrL = trajArchiver.poseProvider.poses[oPoints.back()->frameId];
+    cv::Mat projMatrL;
+    cv::hconcat(R, t, projMatrL);
 
-    cv::Mat undistProjPoint1 = cv::Mat(1,1,CV_64FC2);
     std::vector<cv::Vec2d> vunpF;
-    vunpF.push_back(unPoints.front());
+    for(auto p : pointsF)
+      vunpF.push_back(p);
     std::vector<cv::Vec2d> vunpL;
-    vunpL.push_back(unPoints.back());
+    for(auto p : pointsL)
+      vunpL.push_back(p);
 
     cv::Vec4d point4D;
     cv::triangulatePoints(projMatrF, projMatrL, vunpF, vunpL, point4D);
 
-    point[0] = point4D[0]/point4D[3];
-    point[1] = point4D[1]/point4D[3];
-    point[2] = point4D[2]/point4D[3];
 
   }
 
@@ -684,18 +681,40 @@ void Tracker::trackWithOrb(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
 }
 #endif
 
-void Tracker::saveAllTracks(std::string& pathToSaveFolder)
+void Tracker::saveAllTracks(std::string& pathToAllTracks)
 {
   std::cout << "Total tracks: " << lostTracks.size() << std::endl;
+  std::ofstream allTracksData(pathToAllTracks);
 
-  int id = 0;
   for (auto track : lostTracks)
   {
-    std::ofstream outTrackSave(pathToSaveFolder + std::to_string(id++) + ".txt");
-    outTrackSave << track->type << " ";
+    allTracksData << track->type << " " << track->history.size() << " ";
     for (auto p : track->history)
     {
-      outTrackSave << p->frameId << " " << p->location.x << " " << p->location.y << std::endl;
+      allTracksData << p->frameId << " " << p->location.x << " " << p->location.y << std::endl;
     }
+  }
+}
+
+void Tracker::loadAllTracks(std::string &pathToAllTracks)
+{
+  lostTracks.clear();
+  std::ifstream allTracksData(pathToAllTracks);
+
+  int trackType;
+  int trackSize;
+  while (allTracksData >> trackType) {
+    std::shared_ptr<Track> newTrack(std::make_shared<Track>());
+    newTrack->type = static_cast<PointType>(trackType);
+
+    allTracksData >> trackSize;
+    int frameId;
+    float x,y;
+    for(int i = 0; i < trackSize; i++)
+    {
+      allTracksData >> frameId >> x >> y;
+      newTrack->history.push_back(std::make_shared<TrackedPoint>(cv::Point2f(x,y), frameId));
+    }
+    lostTracks.push_back(newTrack);
   }
 }

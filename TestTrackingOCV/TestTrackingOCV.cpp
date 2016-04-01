@@ -23,6 +23,7 @@ static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
 typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
 
 #define PI 3.14159265
+#define ID_SHIFT 601
 
 int main()
 {
@@ -53,9 +54,9 @@ int main()
   std::string pathToStorage = "../../TD_Data/";
   std::string pathToPostProc = "../../outProc/";
 
-  
   std::string pathToCameraPoses = "../../cameraPoses";
   std::string pathToTrackTypes = "../../tracktypes/";
+  std::string pathToSavedTracks = "../../savedTracks";
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
   TrajectoryArchiver trajArchiver(poseProvider, pathToStorage);
@@ -69,15 +70,14 @@ int main()
   sort(v.begin(), v.end());
   sort(vRgb.begin(), vRgb.end());
 
-  int dInd = 0;
-  while (!boost::filesystem::is_regular_file(vRgb[dInd]))
-  {
-    dInd++;
-  }
+  int dInd, imgsStartId = 0;
+  while (!boost::filesystem::is_regular_file(vRgb[imgsStartId]))
+    imgsStartId++;
 
+  dInd = imgsStartId;
   cv::Size imgsSize = cv::imread(vRgb[dInd].string()).size();
   Tracker tracker(trajArchiver, imgsSize, pathToTrackTypes);
-
+#if 0
   while (dInd < vRgb.size())
   {
     poseProvider.setCurrentFrameNumber(dInd);
@@ -109,14 +109,10 @@ int main()
         }
 
         depthImg = cv::imread(v[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
-        //std::cout << depthImg.channels() << std::endl;
-        //std::cout << depthImg.type() << " " << CV_16U << std::endl;
-        //std::cout << depthImg.at<short>(480-1, 640-1) << std::endl;
         cv::imwrite(depthDebFld + "f" + std::to_string(dInd) + ".bmp", 255 / 10 * depthImg / 5000);
       }
     }
 
-#define ID_SHIFT 601
     std::cout << fName << std::endl;
     if (boost::filesystem::exists(fName))
     {
@@ -135,15 +131,14 @@ int main()
     std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
+#endif
+  double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
+  //tracker.saveAllTracks(pathToSavedTracks);
 
 #if 0
   std::cerr << "postprocessing stuff\n";
-  dInd = 0;
-  while (!boost::filesystem::is_regular_file(vRgb[dInd]))
-  {
-    dInd++;
-  }
 
+  dInd = imgsStartId;
   while (dInd < vRgb.size())
   {
     poseProvider.setCurrentFrameNumber(dInd);
@@ -169,20 +164,16 @@ int main()
   }
 #endif
 
+#if 1
   std::cerr << "build tracks\n";
-  dInd = 0;
-  while (!boost::filesystem::is_regular_file(vRgb[dInd]))
-  {
-    dInd++;
-  }
+  tracker.loadAllTracks(pathToSavedTracks);
 
+  dInd = imgsStartId;
   while (dInd < vRgb.size())
   {
     poseProvider.setCurrentFrameNumber(dInd);
 
     std::string fName = vRgb[dInd].string();
-    std::string fNameOnly = vRgb[dInd].filename().string();
-
     std::cout << fName << std::endl;
     if (boost::filesystem::exists(fName))
     {
@@ -196,11 +187,7 @@ int main()
     std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
     dInd++;
   }
-
-  double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
-
-  std::string pathToSave = "../../trackLogFull/";
-  tracker.saveAllTracks(pathToSave);
+#endif
 
   fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
   fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / vRgb.size());

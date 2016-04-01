@@ -14,6 +14,8 @@ public:
 	void generateRocData(std::ofstream &file, int maxThrErr);
 	void saveAllTracks(std::string& pathToSaveFolder);
 	void drawFinalPointsTypes(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd, cv::Mat &depthImg);
+
+	void loadAllTracks(std::string &pathToAllTracks);
 	void buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd);
 
 	//cv::Mat calcGridPointDistribution();

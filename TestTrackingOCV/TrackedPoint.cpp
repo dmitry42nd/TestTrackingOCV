@@ -7,3 +7,8 @@ TrackedPoint::TrackedPoint(cv::Point2f location, int frameId, double score, cv::
 location(location), frameId(frameId), matchScore(score), keyPt(keyPt), desc(desc), depth(depth)
 {
 }
+
+TrackedPoint::TrackedPoint(cv::Point2f location, int frameId) :
+location(location), frameId(frameId), matchScore(MAX_DISTANCE), keyPt(), desc(cv::Mat()), depth()
+{
+}
