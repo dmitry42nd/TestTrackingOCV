@@ -5,7 +5,12 @@
 
 #include "opencv2/video/tracking.hpp"
 
-cv::Mat K, dist;
+//kinect
+static double k_data[9] = {522.97697, 0.0,       318.47217,
+                    0.0,       522.58746, 256.49968,
+                    0.0,       0.0,       1.0};
+static double dist_data[4] = {0.18962, -0.38214, 0, 0};
+
 Tracker::Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize) :
   trajArchiver(trajArchiver),
   imSize(imSize)
@@ -48,14 +53,7 @@ Tracker::Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize) :
     }
   }
 
-  //kinect
-  K = cv::Mat::zeros(3, 3, CV_64F);
-  K.at<double>(0, 0) = 522.97697;
-  K.at<double>(0, 2) = 318.47217;
-  K.at<double>(1, 1) = 522.58746;
-  K.at<double>(1, 2) = 256.49968;
-  K.at<double>(2, 2) = 1.0;
-  double dist_data[4] = {0.18962, -0.38214, 0, 0};
+  K = cv::Mat(3, 3, CV_64F, k_data);
   dist = cv::Mat(1,4, CV_64F, dist_data);
 
 }
@@ -97,13 +95,13 @@ cv::Mat Tracker::calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std:
 {
   //num of points in each quadrant
   cv::Mat res = cv::Mat::zeros(wy, wx, CV_32F);
-  int sx = imSize.width / wx + 1;
-  int sy = imSize.height / wy + 1;
+  int sx = static_cast<int>(std::ceil(imSize.width / wx));
+  int sy = static_cast<int>(std::ceil(imSize.height / wy));
   //count points in each quadrant
   for (auto const& c : curTracks)
   {
-    int resX = c->bestCandidate->location.x / sx;
-    int resY = c->bestCandidate->location.y / sy;
+    int resX = static_cast<int>(c->bestCandidate->location.x / sx);
+    int resY = static_cast<int>(c->bestCandidate->location.y / sy);
     res.at<float>(resY, resX) += 1;
   }
   cv::Mat boolRes = cv::Mat::zeros(wy, wx, CV_8U);
@@ -160,7 +158,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
   std::vector<cv::KeyPoint> keyPts;
   std::cout << " detecting.. " << indX << " " << indY << std::endl;
   fastDetector->detect(m_nextImg, keyPts, detMasks[indY][indX]);
-  int keyPtsSize = keyPts.size();
+  auto keyPtsSize = keyPts.size();
 
   if (keyPtsSize > 0)
   {
@@ -172,7 +170,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
     }*/
 
     //get 80% of best by reduction points
-    cv::KeyPointsFilter::retainBest(keyPts, keyPts.size() * 6 / 10);
+    cv::KeyPointsFilter::retainBest(keyPts, static_cast<int>(keyPts.size() * 0.6));
     //draw all filtered points (yellow)
     /*for (auto const& kp : keyPts)
     {
@@ -201,7 +199,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat& m_nextImg, cv::Mat& dept
 }
 
 #if 1
-void undistPoint(cv::Point2f const& point, cv::Mat const& K, cv::Mat const& dist, cv::Point2d & undist) {
+void Tracker::undistPoint(cv::Point2f const& point, cv::Point2d & undist) {
   cv::Mat projPoint(1, 1, CV_64FC2);
   projPoint.at<cv::Vec2d>(0, 0)[0] = point.x;
   projPoint.at<cv::Vec2d>(0, 0)[1] = point.y;
@@ -234,8 +232,7 @@ void makeCamera(CameraPose const& cp, double* camera) {
   //printCamera(camera, 1);
 }
 
-
-void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np) {
+void Tracker::getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np) {
   double p[3], xp, yp;
   ceres::AngleAxisRotatePoint(camera, point, p);
   p[0] += camera[3];
@@ -253,7 +250,6 @@ void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::P
   pp = vpp[0];
 }
 
-
 void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
   double *point = new double[3];
 
@@ -267,9 +263,9 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
     std::vector<cv::Point2d> unPoints;
     std::vector<CameraPose> cameraPoses;
 
-    int trackSize = track->history.size();
-    int sample_size = SAMPLE_SIZE;
-    int step = std::ceil(trackSize / sample_size);
+    auto trackSize = track->history.size();
+    int  sample_size = SAMPLE_SIZE;
+    int  step = static_cast<int>(std::ceil(trackSize / sample_size));
 
     int pId;
     for(pId = FIRST_FRAME; pId < trackSize; pId+=step)
@@ -290,7 +286,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
           cameras.push_back(camera);
 
           cv::Point2d unp;
-          undistPoint(op->location, K, dist, unp);
+          undistPoint(op->location, unp);
           unPoints.push_back(unp);
 
           ceres::CostFunction* cost_function = TriangulateError::Create(unp.x, unp.y, camera);
@@ -316,7 +312,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
         cameras.push_back(camera);
         makeCamera(cp, camera);
         cv::Point2d unp;
-        undistPoint(op->location, K, dist, unp);
+        undistPoint(op->location, unp);
         unPoints.push_back(unp);
         ceres::CostFunction *cost_function = TriangulateError::Create(unp.x, unp.y, camera);
         problem.AddResidualBlock(cost_function, NULL, point);
@@ -354,7 +350,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track, double errThr) {
     getProjectionAndNorm(cameras.back(), point, ppL, npL);
 
     CameraPose cpM;
-    int pIdM = track->history.size()/2;
+    int pIdM = static_cast<int>(std::round(track->history.size()/2));
     trajArchiver.poseProvider.getPoseForFrame(cpM, track->history[pIdM]->frameId);
     double *cameraM = new double[6];
     makeCamera(cpM, cameraM);
@@ -434,8 +430,9 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
       cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
       double trackDist = norm(err);
 
-      if (!ifTracksEnd(frameInd) && trackDist < trackThr && status[i] && nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
-        nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows)
+      if (!ifTracksEnd(frameInd) && trackDist < trackThr && status[i] &&
+          nextCorners[i].x >= 0 && nextCorners[i].x < m_nextImg.cols &&
+          nextCorners[i].y >= 0 && nextCorners[i].y < m_nextImg.rows)
       {
         cv::Point2f pt = fillDepthPt(nextCorners[i], ccx, ccy, cfx, cfy, ccx, ccy, cfx, cfy);
         int px, py;
@@ -501,9 +498,9 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
            track->history[p + 1]->frameId == frameInd + 1)
         {
           cv::Point2d unp1, unp2;
-          undistPoint(track->history[p]->location, K, dist, unp1);
+          undistPoint(track->history[p]->location, unp1);
           pointsF.push_back(unp1);
-          undistPoint(track->history[p + 1]->location, K, dist, unp2);
+          undistPoint(track->history[p + 1]->location, unp2);
           pointsL.push_back(unp2);
           break;
         }

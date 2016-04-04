@@ -12,9 +12,9 @@ public:
   Track();
 
   PointType type;
-  float angle;
-  float c, median;
-  float err[3];
+  double angle;
+  double c, median;
+  double err[3];
 
   std::vector<std::shared_ptr<TrackedPoint>> history;
   std::shared_ptr<TrackedPoint> bestCandidate;

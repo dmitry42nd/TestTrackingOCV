@@ -58,10 +58,13 @@ protected:
 	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
 	void defineTrackType(std::shared_ptr<Track> track, double errThr);
+	void undistPoint(cv::Point2f const& point, cv::Point2d & undist);
+	void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np);
 
   std::string pathToTrackTypes;
 	std::vector<std::pair<double,bool>> errs_v;
 	cv::Ptr<cv::FastFeatureDetector> fastDetector;
+	cv::Mat K, dist;
 
 private:
 	TrajectoryArchiver trajArchiver;

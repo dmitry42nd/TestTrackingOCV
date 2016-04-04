@@ -1,14 +1,18 @@
 // TestTrackingOCV.cpp : Defines the entry point for the console application.
-//
+
 #include "stdafx.h"
 
 #include <regex>
-
 #include <time.h>
-#include "Tracker.h"
 
+#include "Tracker.h"
 #include "CameraPoseProviderTXT.h"
 #include "TrajectoryArchiver.h"
+
+#define ID_SHIFT 601
+
+typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
+static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
 
 void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 {
@@ -18,11 +22,6 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
   prefInt = std::stoi(pref);
   sufInt = std::stoi(suf);
 }
-
-static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
-typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
-
-#define ID_SHIFT 601
 
 int main()
 {
@@ -44,24 +43,24 @@ int main()
 
   boost::filesystem::current_path("/home/dmitry/projects/DynTrack/TestTrackingOCV/bin");
 
-  std::string dirName = "../../fullTrack/rgb/";
-  std::string outDirName = "../../debug_tracking/out/";
-  std::string outCleanDirName = "../../outClean/";
-  std::string depthFld = "../../depth/";
+  std::string inFld  = "../../fullTrack/rgb/";
+  std::string outFld = "../../debug_tracking/out/";
+  std::string outCleanFld = "../../outClean/";
+  std::string depthFld    = "../../depth/";
   std::string depthDebFld = "../../depthDebug/";
-  std::string pathToTracksFolder = "../../tracks_6_11/track/";
-  std::string pathToStorage = "../../TD_Data/";
-  std::string pathToPostProc = "../../outProc/";
+  std::string trackTypesInfoFld  = "../../tracktypes/";
+  //storing tracks online
+  std::string lostTracksFld = "../../TD_Data/";
+  std::string finalTrackTypesFld = "../../outProc/";
 
   std::string pathToCameraPoses = "../../cameraPoses";
-  std::string pathToTrackTypes = "../../tracktypes/";
   std::string pathToSavedTracks = "../../savedTracks";
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
-  TrajectoryArchiver trajArchiver(poseProvider, pathToStorage);
+  TrajectoryArchiver trajArchiver(poseProvider, lostTracksFld);
 
   boost::filesystem::path p(depthFld);
-  boost::filesystem::path p2(dirName);
+  boost::filesystem::path p2(inFld);
 
   vec v, vRgb;
   copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
@@ -75,7 +74,8 @@ int main()
 
   dInd = imgsStartId;
   cv::Size imgsSize = cv::imread(vRgb[dInd].string()).size();
-  Tracker tracker(trajArchiver, imgsSize, pathToTrackTypes);
+  Tracker tracker(trajArchiver, imgsSize, trackTypesInfoFld);
+
 #if 0
   while (dInd < vRgb.size())
   {
@@ -119,12 +119,12 @@ int main()
       cv::Mat outputImg;
       cv::cvtColor(img, outputImg, CV_GRAY2BGR);
 
-      std::string fNameOutClean = outCleanDirName + std::to_string(dInd) + ".bmp";
+      std::string fNameOutClean = outCleanFld + std::to_string(dInd) + ".bmp";
       cv::imwrite(fNameOutClean, outputImg);
 
       tracker.trackWithKLT(img, outputImg, ID_SHIFT + dInd, depthImg);
       //tracker.trackWithOrb(img, outputImg, dInd, depthImg);
-      std::string fNameOut = outDirName + std::to_string(ID_SHIFT + dInd) + ".bmp";
+      std::string fNameOut = outFld + std::to_string(ID_SHIFT + dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }
     std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
@@ -155,7 +155,7 @@ int main()
 
       tracker.drawFinalPointsTypes(img, outputImg, ID_SHIFT + dInd, depthImg);
 
-      std::string fNameOut = pathToPostProc + std::to_string(ID_SHIFT + dInd) + ".bmp";
+      std::string fNameOut = finalTrackTypesFld + std::to_string(ID_SHIFT + dInd) + ".bmp";
       cv::imwrite(fNameOut, outputImg);
     }
     std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
