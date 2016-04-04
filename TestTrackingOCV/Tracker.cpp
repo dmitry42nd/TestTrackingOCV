@@ -518,41 +518,58 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
 
     //get R, t from frameInd to frameInd + 1
     cv::Mat E = cv::Mat::zeros(3, 3, CV_64F);
-    E = cv::findEssentialMat(pointsF, pointsL);
-    std::cerr << E << std::endl;
+    cv::Mat mask;
+    E = cv::findEssentialMat(pointsF, pointsL, 1.0, cv::Point2d(0,0), cv::RANSAC, 0.999, 1.0, mask);
+    //std::cerr << E << std::endl;
     cv::Mat R, t;
     if (E.rows == 3 && E.cols == 3)
     {
       int res = cv::recoverPose(E, pointsF, pointsL, R, t);
-      std::cerr << res << std::endl;
+
+      /*std::cerr << res << std::endl;
       std::cerr << R << std::endl;
-      std::cerr << t << std::endl;
+      std::cerr << t << std::endl;*/
+
+      cv::Mat projMatrF;
+      cv::hconcat(cv::Mat::eye(3,3,CV_64F), cv::Mat::zeros(3,1,CV_64F), projMatrF);
+      cv::Mat projMatrL;
+      cv::hconcat(R, t, projMatrL);
+
+      std::vector<cv::Vec2d> vunpF;
+      for(auto p : pointsF)
+        vunpF.push_back(p);
+      std::vector<cv::Vec2d> vunpL;
+      for(auto p : pointsL)
+        vunpL.push_back(p);
+
+      cv::Mat points4D;
+      cv::triangulatePoints(projMatrF, projMatrL, vunpF, vunpL, points4D);
+      //std::cerr << points4D << std::endl;
+      std::cerr << mask.t() << std::endl;
+      for(int i = 0; i < points4D.cols; i++) {
+        const cv::Rect roi = cv::Rect(0, 0, 1, 2);
+        cv::Mat pr1 = projMatrF*points4D.col(i);
+        cv::Mat pr2 = projMatrL*points4D.col(i);
+        pr1 = (pr1 / pr1.at<double>(2, 0))(roi);
+        pr2 = (pr2 / pr2.at<double>(2, 0))(roi);
+
+        /*std::cerr << "observed  f: " << pointsF[i] << std::endl;
+        std::cerr << "projected f: " << pr1.t() << std::endl;
+        std::cerr << "observed  l: " << pointsL[i] << std::endl;
+        std::cerr << "projected l: " << pr2.t() << std::endl;*/
+
+        double normErr1 = cv::norm(cv::Vec2d(pointsF[i].x - pr1.at<double>(0,0), pointsF[i].y - pr1.at<double>(0,1)));
+        double normErr2 = cv::norm(cv::Vec2d(pointsL[i].x - pr2.at<double>(0,0), pointsL[i].y - pr2.at<double>(0,1)));
+
+        std::cerr << normErr1 << " " << normErr2 << std::endl;
+      }
+
     }
     else
     {
       std::cerr << "five point failed\n";
     }
-
-
-    cv::Mat projMatrF;
-    cv::hconcat(cv::Mat::ones(3,3,CV_64F), cv::Mat::zeros(1,3,CV_64F), projMatrF);
-    cv::Mat projMatrL;
-    cv::hconcat(R, t, projMatrL);
-
-    std::vector<cv::Vec2d> vunpF;
-    for(auto p : pointsF)
-      vunpF.push_back(p);
-    std::vector<cv::Vec2d> vunpL;
-    for(auto p : pointsL)
-      vunpL.push_back(p);
-
-    cv::Vec4d point4D;
-    cv::triangulatePoints(projMatrF, projMatrL, vunpF, vunpL, point4D);
-
-
   }
-
-
 }
 
 

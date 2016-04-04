@@ -22,7 +22,6 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
 typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
 
-#define PI 3.14159265
 #define ID_SHIFT 601
 
 int main()

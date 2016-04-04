@@ -25,4 +25,6 @@
 #include "ceres/ceres.h"
 #include "glog/logging.h"
 
+#define PI 3.14159265
+
 // TODO: reference additional headers your program requires here
