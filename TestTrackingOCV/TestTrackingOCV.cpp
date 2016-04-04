@@ -41,20 +41,22 @@ int main()
 #else
   clock_t tStart = clock();
 
-  boost::filesystem::current_path("/home/dmitry/projects/DynTrack/TestTrackingOCV/bin");
+  cv::FileStorage fs("settings.yaml", cv::FileStorage::READ);
 
-  std::string inFld  = "../../fullTrack/rgb/";
-  std::string outFld = "../../debug_tracking/out/";
-  std::string outCleanFld = "../../outClean/";
-  std::string depthFld    = "../../depth/";
-  std::string depthDebFld = "../../depthDebug/";
-  std::string trackTypesInfoFld  = "../../tracktypes/";
-  //storing tracks online
-  std::string lostTracksFld = "../../TD_Data/";
-  std::string finalTrackTypesFld = "../../outProc/";
+  std::string rootFld            = fs["root"];
+  std::string inFld              = fs["inFld"];
+  std::string outFld             = fs["outFld"];
+  std::string outCleanFld        = fs["outCleanFld"];
+  std::string depthFld           = fs["depthFld"];
+  std::string depthDebugFld      = fs["depthDebugFld"];
+  std::string trackTypesInfoFld  = fs["trackTypesInfoFld"];
+  std::string lostTracksFld      = fs["lostTracksFld"];
+  std::string finalTrackTypesFld = fs["finalTrackTypesFld"];
 
-  std::string pathToCameraPoses = "../../cameraPoses";
-  std::string pathToSavedTracks = "../../savedTracks";
+  std::string pathToCameraPoses = fs["pathToCameraPoses"];
+  std::string pathToSavedTracks = fs["pathToSavedTracks"];
+
+  boost::filesystem::current_path(rootFld);
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
   TrajectoryArchiver trajArchiver(poseProvider, lostTracksFld);
@@ -108,7 +110,7 @@ int main()
         }
 
         depthImg = cv::imread(v[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
-        cv::imwrite(depthDebFld + "f" + std::to_string(dInd) + ".bmp", 255 / 10 * depthImg / 5000);
+        cv::imwrite(depthDebugFld + "f" + std::to_string(dInd) + ".bmp", 255 / 10 * depthImg / 5000);
       }
     }
 

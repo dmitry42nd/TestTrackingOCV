@@ -1,0 +1,34 @@
+%YAML:1.0
+
+#Paths
+root:               "."
+inFld:              "../fullTrack/rgb/"
+outFld:             "../debug_tracking/out/"
+outCleanFld:        "../outClean/"
+depthFld:           "../depth/"
+depthDebugFld:      "../depthDebug/"
+trackTypesInfoFld:  "../tracktypes/"
+lostTracksFld:      "../TD_Data/"
+finalTrackTypesFld: "../outProc/"
+
+pathToCameraPoses: "../cameraPoses"
+pathToSavedTracks: "../savedTracks"
+
+#TODO: use it
+# Camera Parameters. Adjust them!
+# Camera calibration parameters (OpenCV)
+#kinect
+Camera.fx: 522.97697
+Camera.fy: 522.58746
+Camera.cx: 318.47217
+Camera.cy: 256.49968
+
+# Camera distortion paremeters (OpenCV) --
+#kinect
+Camera.k1:  0.18962   
+Camera.k2: -0.38214
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+# ORB Extractor: Number of features per image
+nFeatures: 1000
