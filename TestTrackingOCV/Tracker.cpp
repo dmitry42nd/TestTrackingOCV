@@ -482,46 +482,65 @@ void Tracker::trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameIn
   prevImg = m_nextImg;
 }
 
+
+void get5Min(std::vector<cv::Point2d>& metaPoints, std::vector<cv::Point3d>& pnpPoints,
+             cv::Point2d & metaCandidate, cv::Point3d & pnpCandidate)
+{
+    if(metaPoints.size() < 5)
+    {
+      metaPoints.push_back(metaCandidate);
+      pnpPoints.push_back(pnpCandidate);
+    }
+    else {
+      for (auto i = 0; i < metaPoints.size(); i++)
+      {
+        if(p->)
+      }
+    }
+}
+
 void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd)
 {
   cv::cvtColor(m_nextImg, outputFrame, CV_GRAY2BGR);
 
-  std::vector<cv::Point2d> pointsF, pointsL;
+  std::vector<cv::Point2d> unPointsF, unPointsL;
+  //std::vector<std::shared_ptr<TrackedPoint>> metaPointsF, metaPointsL;
   //getPointsForFrameInd()
   for(auto track : lostTracks)
   {
-    if (track->type == Dynamic)
+    if (track->history.back()->frameId >= frameInd && track->type == Dynamic)
     {
-      for(int p = 0; p < track->history.size() - 1; p++)
+      auto p = std::find_if(track->history.begin(), track->history.end(),
+                             [&frameInd](const std::shared_ptr<TrackedPoint> obj) {return obj->frameId == frameInd;});
+
+      if (p < track->history.end()-1) //if not last
       {
-        if(track->history[p]->frameId == frameInd &&
-           track->history[p + 1]->frameId == frameInd + 1)
-        {
-          cv::Point2d unp1, unp2;
-          undistPoint(track->history[p]->location, unp1);
-          pointsF.push_back(unp1);
-          undistPoint(track->history[p + 1]->location, unp2);
-          pointsL.push_back(unp2);
-          break;
-        }
+        cv::Point2d unpF, unpL;
+
+        //metaPointsF.push_back(*p);
+        undistPoint((*p++)->location, unpF);
+        unPointsF.push_back(unpF);
+
+        //metaPointsL.push_back(*p);
+        undistPoint((*p)->location, unpL);
+        unPointsL.push_back(unpL);
       }
     }
   }
 
-
-  if(pointsF.size() >= 5 /*&& pointsL.size() >= 5*/)
+  if(unPointsF.size() >= 5 /*&& unPointsL.size() >= 5*/)
   {
-    std::cerr << "got " << pointsF.size() << " points for frame pair " << frameInd << " - " << frameInd + 1 << std::endl;
+    std::cerr << "got " << unPointsF.size() << " points for frame pair " << frameInd << " - " << frameInd + 1 << std::endl;
 
     //get R, t from frameInd to frameInd + 1
     cv::Mat E = cv::Mat::zeros(3, 3, CV_64F);
     cv::Mat mask;
-    E = cv::findEssentialMat(pointsF, pointsL, 1.0, cv::Point2d(0,0), cv::RANSAC, 0.999, 1.0, mask);
+    E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0,0), cv::RANSAC, 0.999, 1.0, mask);
     //std::cerr << E << std::endl;
     cv::Mat R, t;
     if (E.rows == 3 && E.cols == 3)
     {
-      int res = cv::recoverPose(E, pointsF, pointsL, R, t);
+      int res = cv::recoverPose(E, unPointsF, unPointsL, R, t);
 
       /*std::cerr << res << std::endl;
       std::cerr << R << std::endl;
@@ -532,33 +551,40 @@ void Tracker::buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd
       cv::Mat projMatrL;
       cv::hconcat(R, t, projMatrL);
 
+      //why type transform?
       std::vector<cv::Vec2d> vunpF;
-      for(auto p : pointsF)
+      for(auto p : unPointsF)
         vunpF.push_back(p);
       std::vector<cv::Vec2d> vunpL;
-      for(auto p : pointsL)
+      for(auto p : unPointsL)
         vunpL.push_back(p);
 
       cv::Mat points4D;
       cv::triangulatePoints(projMatrF, projMatrL, vunpF, vunpL, points4D);
       //std::cerr << points4D << std::endl;
-      std::cerr << mask.t() << std::endl;
+      //std::cerr << mask.t() << std::endl;
+
+      //get five points with minimal back projection error
+      std::vector<cv::Point2d> bestUnPointsF, bestUnPointsL;
+      std::vector<cv::Point3f> pnp3dPoints;
+      std::vector<double> projErr;
+
       for(int i = 0; i < points4D.cols; i++) {
         const cv::Rect roi = cv::Rect(0, 0, 1, 2);
-        cv::Mat pr1 = projMatrF*points4D.col(i);
-        cv::Mat pr2 = projMatrL*points4D.col(i);
-        pr1 = (pr1 / pr1.at<double>(2, 0))(roi);
-        pr2 = (pr2 / pr2.at<double>(2, 0))(roi);
+        cv::Mat pr1_ = projMatrF*points4D.col(i);
+        cv::Mat pr2_ = projMatrL*points4D.col(i);
+        cv::Mat pr1 = (pr1_ / pr1_.at<double>(2, 0))(roi);
+        cv::Mat pr2 = (pr2_ / pr2_.at<double>(2, 0))(roi);
 
-        /*std::cerr << "observed  f: " << pointsF[i] << std::endl;
-        std::cerr << "projected f: " << pr1.t() << std::endl;
-        std::cerr << "observed  l: " << pointsL[i] << std::endl;
+        /*std::cerr << "observed  f: " << unPointsF[i] << std::endl;
+`       std::cerr << "projected f: " << pr1.t() << std::endl;
+        std::cerr << "observed  l: " << unPointsL[i] << std::endl;
         std::cerr << "projected l: " << pr2.t() << std::endl;*/
 
-        double normErr1 = cv::norm(cv::Vec2d(pointsF[i].x - pr1.at<double>(0,0), pointsF[i].y - pr1.at<double>(0,1)));
-        double normErr2 = cv::norm(cv::Vec2d(pointsL[i].x - pr2.at<double>(0,0), pointsL[i].y - pr2.at<double>(0,1)));
-
-        std::cerr << normErr1 << " " << normErr2 << std::endl;
+        double normErr1 = cv::norm(cv::Vec2d(unPointsF[i].x - pr1.at<double>(0,0), unPointsF[i].y - pr1.at<double>(0,1)));
+        double normErr2 = cv::norm(cv::Vec2d(unPointsL[i].x - pr2.at<double>(0,0), unPointsL[i].y - pr2.at<double>(0,1)));
+        double mean2Err = (normErr1 + normErr2) / 2;
+        //std::cerr << normErr1 << " " << normErr2 << std::endl;
       }
 
     }
@@ -581,12 +607,12 @@ void Tracker::drawFinalPointsTypes(cv::Mat &m_nextImg, cv::Mat &outputFrame, int
         cv::Scalar color;
         if (track->type == Static) {
           color = cv::Scalar(200, 200, 200);
-          cv::circle(outputFrame, p->location, 2, color, -1);
+          cv::circle(outputFrame, p->location, 4, color, -1);
         }
         else if (track->type == Dynamic)
         {
           color = cv::Scalar(0, 200, 0);
-          cv::circle(outputFrame, p->location, 2, color, -1);
+          cv::circle(outputFrame, p->location, 4, color, -1);
         }
         break;
       }
