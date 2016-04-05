@@ -3,66 +3,26 @@
 #include "TrajectoryArchiver.h"
 
 
-TrajectoryArchiver::TrajectoryArchiver(CameraPoseProvider &poseProvider, std::string &pathToStorage) : poseProvider(poseProvider), pathToStorage(pathToStorage)
-{
-	archCnt = 0;
-}
-
+TrajectoryArchiver::TrajectoryArchiver(std::string &pathToAllTracks) :
+	allTracksData(pathToAllTracks)
+{}
 
 TrajectoryArchiver::~TrajectoryArchiver()
 {
+	allTracksData.close();
 }
 
-void TrajectoryArchiver::writeTrajectory(std::shared_ptr<Track>& track, int idNum)
+
+void TrajectoryArchiver::archiveTrajectorySimple(std::shared_ptr<Track> track)
 {
-	std::string trackFName = pathToStorage + std::to_string(idNum) + ".txt";
-	std::ofstream trackOut(trackFName);
-	for (int i = 0; i < track->history.size(); i++)
+	allTracksData << track->type << " " << track->history.size() << " ";
+	for (auto p : track->history)
 	{
-		std::shared_ptr<TrackedPoint> tp = track->history[i];
-		CameraPose cameraPose;
-		poseProvider.getPoseForFrame(cameraPose, tp->frameId);
-		if (tp->depth > 0 && cameraPose.R.cols > 0)
-		{
-			trackOut << tp->frameId << " ";
-			trackOut << tp->location.x << " ";
-			trackOut << tp->location.y << " ";
-			trackOut << tp->depth << " ";
-			cv::Mat rodVect;
-			cv::Rodrigues(cameraPose.R, rodVect);
-			for (int i = 0; i < 3; i++)
-			{
-				trackOut << rodVect.at <double>(i, 0) << " ";
-			}
-			for (int i = 0; i < 3; i++)
-			{
-				trackOut << cameraPose.t.at <double>(i, 0) << " ";
-			}
-		}
+		allTracksData << p->frameId << " " << p->loc.x << " " << p->loc.y << " " << p->depth << " ";
 	}
 }
 
-void TrajectoryArchiver::writeTrajectorySimple(std::shared_ptr<Track>& track, int idNum)
-{
-  std::string trackFName = pathToStorage + std::to_string(idNum) + ".txt";
-  //std::cout << trackFName << std::endl;
-  std::ofstream trackOut(trackFName);
-  for (int i = 0; i < track->history.size(); i++)
-  {
-    std::shared_ptr<TrackedPoint> tp = track->history[i];
-    trackOut << tp->frameId << " ";
-    trackOut << tp->location.x << " ";
-    trackOut << tp->location.y << " ";
-    trackOut << tp->depth << " ";
-  }
-}
-
-void TrajectoryArchiver::archiveTrajectorySimple(std::shared_ptr<Track>& track)
-{
-  writeTrajectorySimple(track, archCnt);
-  archCnt++;
-}
-
+#if 0
 void TrajectoryArchiver::archiveTrajectory(std::shared_ptr<Track>& track)
 {
 //check if we have at least N depth values
@@ -72,7 +32,7 @@ void TrajectoryArchiver::archiveTrajectory(std::shared_ptr<Track>& track)
 	{
 		CameraPose cameraPose;
 		int frmId = track->history[i]->frameId;
-		poseProvider.getPoseForFrame(cameraPose, frmId);
+		poseProvider.getCameraPoseForFrame(cameraPose, frmId);
 		if (track->history[i]->depth > 0)
 		{
 			//std::cout << " non-zero depth !" << std::endl;
@@ -92,3 +52,33 @@ void TrajectoryArchiver::archiveTrajectory(std::shared_ptr<Track>& track)
 		archCnt++;
 	}
 }
+
+void TrajectoryArchiver::writeTrajectory(std::shared_ptr<Track>& track, int idNum)
+{
+	std::string trackFName = pathToStorage + std::to_string(idNum) + ".txt";
+	std::ofstream trackOut(trackFName);
+	for (int i = 0; i < track->history.size(); i++)
+	{
+		std::shared_ptr<TrackedPoint> tp = track->history[i];
+		CameraPose cameraPose;
+		poseProvider.getCameraPoseForFrame(cameraPose, tp->frameId);
+		if (tp->depth > 0 && cameraPose.R.cols > 0)
+		{
+			trackOut << tp->frameId << " ";
+			trackOut << tp->loc.x << " ";
+			trackOut << tp->loc.y << " ";
+			trackOut << tp->depth << " ";
+			cv::Mat rodVect;
+			cv::Rodrigues(cameraPose.R, rodVect);
+			for (int i = 0; i < 3; i++)
+			{
+				trackOut << rodVect.at <double>(i, 0) << " ";
+			}
+			for (int i = 0; i < 3; i++)
+			{
+				trackOut << cameraPose.t.at <double>(i, 0) << " ";
+			}
+		}
+	}
+}
+#endif

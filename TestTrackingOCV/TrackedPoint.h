@@ -5,22 +5,18 @@
 class TrackedPoint
 {
 public:
-  TrackedPoint() :
-    frameId(0), 
-    matchScore(MAX_DISTANCE)
-  { }
+	TrackedPoint(cv::Point2f location, int frameId, double depth = 0);
+	TrackedPoint(cv::Point2f location, int frameId, cv::KeyPoint keyPt, cv::Mat desc, double matchScore = MAX_DISTANCE,
+               double depth = 0);
 
-	TrackedPoint(cv::Point2f location, int frameId, double score, cv::KeyPoint keyPt, cv::Mat desc, double depth = 0);
-	TrackedPoint(cv::Point2f location, int frameId);
-
-
-	double matchScore;
-	double depth;
-
-	cv::Point2f location;
+  cv::Point2d undist(cv::Mat const& K, cv::Mat const& dist);
+public:
+	int frameId;
+	cv::Point2f loc;
 	cv::KeyPoint keyPt;
 	cv::Mat desc;
+  double matchScore;
+  double depth;
 
-	int frameId;
 };
 

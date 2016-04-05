@@ -3,22 +3,17 @@
 #include "CameraPoseProvider.h"
 #include <string>
 
-
-CameraPoseProvider::CameraPoseProvider()
+int CameraPoseProvider::getCameraPoseForFrame(CameraPose &cameraPose, int frameId)
 {
+  return 1;
 }
 
-
-CameraPoseProvider::~CameraPoseProvider()
+int CameraPoseProvider::getCeresCameraForFrame(double * camera, int frameId)
 {
+  return 1;
 }
 
-void CameraPoseProvider::getCurrentPose(CameraPose& cameraPose)
+int CameraPoseProvider::getProjMatrForFrame(cv::Mat & projMatr, int frameId)
 {
-
-}
-
-void CameraPoseProvider::getPoseForFrame(CameraPose& cameraPose, int frameNum)
-{
-
+  return 1;
 }

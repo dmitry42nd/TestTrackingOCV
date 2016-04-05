@@ -1546,7 +1546,7 @@
 \fi\fi % if t, b, c
 \fi % if a
 % advance \topmargin by the needed amount and reduce \headsep by the same
-% so as not to disturb the location of the main text
+% so as not to disturb the loc of the main text
 \advance\topmargin by \@IEEEtrantmpdimenA\relax
 \advance\headsep by -\@IEEEtrantmpdimenA\relax
 }

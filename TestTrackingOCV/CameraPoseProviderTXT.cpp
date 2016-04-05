@@ -21,38 +21,29 @@ CameraPoseProviderTXT::CameraPoseProviderTXT(std::string& pathToCameraPoses)
       cameraPosesData >> tData[i];
     }
     cv::Mat R = cv::Mat(3, 3, CV_64F, RData);
-    cv::Mat t = cv::Mat(1, 3, CV_64F, tData);
-    cv::Mat P;
-    cv::hconcat(R.t(), -R.t()*t.t(), P);
-    //P = K*P;
-    poses.insert(std::make_pair(frameId, P));
+    cv::Mat t = cv::Mat(3, 1, CV_64F, tData);
+
+    CameraPose cp(R.t(), -R.t()*t);
+    poses.insert(std::make_pair(frameId, cp));
   }
-  frameNum = 0;
 }
 
-void CameraPoseProviderTXT::setCurrentFrameNumber(int frameInd)
+int CameraPoseProviderTXT::getCameraPoseForFrame(CameraPose &cameraPose, int frameId)
 {
-	frameNum = frameInd;
+	if (poses.count(frameId) == 0)
+    return 1; //empty
+
+  cameraPose = poses[frameId];
+  return 0; //success
 }
 
-CameraPoseProviderTXT::~CameraPoseProviderTXT()
+int CameraPoseProviderTXT::getProjMatrForFrame(cv::Mat & projMatr, int frameId)
 {
-}
+  CameraPose cp;
+  if(getCameraPoseForFrame(cp, frameId)) {
+    return 1;
+  }
 
-void CameraPoseProviderTXT::getCurrentPose(CameraPose& cameraPose)
-{	
-	getPoseForFrame(cameraPose, frameNum);
-}
-
-//better to return projection matrix
-void CameraPoseProviderTXT::getPoseForFrame(CameraPose& cameraPose, int qFrameNum)
-{
-	cameraPose.R = cv::Mat::zeros(0, 0, CV_64F);
-	cameraPose.t = cv::Mat::zeros(0, 0, CV_64F);
-	if (poses.count(qFrameNum) > 0)
-	{
-		//std::cout << "pose given " << std::endl;
-		cameraPose.R = poses[qFrameNum](cv::Rect(0, 0, 3, 3));
-		cameraPose.t = poses[qFrameNum](cv::Rect(3, 0, 1, 3));
-	}
+  cv::hconcat(cp.R, cp.t, projMatr);
+  return 0;
 }

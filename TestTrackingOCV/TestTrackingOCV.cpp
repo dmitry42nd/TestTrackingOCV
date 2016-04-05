@@ -11,7 +11,8 @@
 
 #define ID_SHIFT 601
 
-typedef std::vector<boost::filesystem::path> vec; // store paths, so we can sort them later
+typedef boost::filesystem::path ImgPath;
+
 static const std::regex e("^[0-9]+/.[0-9]+/.(bmp|png)$");
 
 void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
@@ -21,6 +22,37 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
   std::string suf = fOnly.substr(sepInd + 1, fOnly.size() - sepInd - 1);
   prefInt = std::stoi(pref);
   sufInt = std::stoi(suf);
+}
+
+
+void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, ImgPath const &rgbImgPath)
+{
+  std::string fName = rgbImgPath.filename().string();
+  int prefInt, sufInt;
+  int minInd = -1; //depth img index
+  long double minPref = 1e100;
+
+  if (depthImgsPaths.size() > 0)
+  {
+    //TODO: usual 000.png case
+    //000.000.png
+    if (std::regex_match(fName.c_str(), e))
+    {
+      extractNumbers(fName, prefInt, sufInt);
+      for (int cInd = 0; cInd < depthImgsPaths.size(); cInd++)
+      {
+        int dPrefInt, dSufInt;
+        extractNumbers(depthImgsPaths[cInd].filename().string(), dPrefInt, dSufInt);
+        long double val = abs(dPrefInt - prefInt)*1e8 + abs(dSufInt - sufInt);
+        if (val < minPref)
+        {
+          minInd = cInd;
+          minPref = val;
+        }
+      }
+      depthImg = cv::imread(depthImgsPaths[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
+    }
+  }
 }
 
 int main()
@@ -46,11 +78,9 @@ int main()
   std::string rootFld            = fs["root"];
   std::string inFld              = fs["inFld"];
   std::string outFld             = fs["outFld"];
-  std::string outCleanFld        = fs["outCleanFld"];
   std::string depthFld           = fs["depthFld"];
-  std::string depthDebugFld      = fs["depthDebugFld"];
   std::string trackTypesInfoFld  = fs["trackTypesInfoFld"];
-  std::string lostTracksFld      = fs["lostTracksFld"];
+  //std::string lostTracksFld      = fs["lostTracksFld"];
   std::string finalTrackTypesFld = fs["finalTrackTypesFld"];
 
   std::string pathToCameraPoses = fs["pathToCameraPoses"];
@@ -58,144 +88,93 @@ int main()
 
   boost::filesystem::current_path(rootFld);
 
+  boost::filesystem::path pathToDepthFld(depthFld);
+  boost::filesystem::path pathToInFld(inFld);
+
+  std::vector<ImgPath> depthImgsPaths, rgbImgsPaths;
+  copy(boost::filesystem::directory_iterator(pathToDepthFld), boost::filesystem::directory_iterator(), std::back_inserter(depthImgsPaths));
+  copy(boost::filesystem::directory_iterator(pathToInFld), boost::filesystem::directory_iterator(), std::back_inserter(rgbImgsPaths));
+  sort(rgbImgsPaths.begin(), rgbImgsPaths.end());
+  sort(depthImgsPaths.begin(), depthImgsPaths.end());
+
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
-  TrajectoryArchiver trajArchiver(poseProvider, lostTracksFld);
+  TrajectoryArchiver    trajArchiver(pathToSavedTracks);
 
-  boost::filesystem::path p(depthFld);
-  boost::filesystem::path p2(inFld);
+  cv::Size imgSize = cv::imread(rgbImgsPaths.front().string()).size();
+  Tracker tracker(trajArchiver, poseProvider, imgSize);
 
-  vec v, vRgb;
-  copy(boost::filesystem::directory_iterator(p), boost::filesystem::directory_iterator(), std::back_inserter(v));
-  copy(boost::filesystem::directory_iterator(p2), boost::filesystem::directory_iterator(), std::back_inserter(vRgb));
-  sort(v.begin(), v.end());
-  sort(vRgb.begin(), vRgb.end());
-
-  int dInd, imgsStartId = 0;
-  while (!boost::filesystem::is_regular_file(vRgb[imgsStartId]))
-    imgsStartId++;
-
-  dInd = imgsStartId;
-  cv::Size imgsSize = cv::imread(vRgb[dInd].string()).size();
-  Tracker tracker(trajArchiver, imgsSize, trackTypesInfoFld);
-
-#if 0
-  while (dInd < vRgb.size())
+#if 1
+  int imgId;
+  for (imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
   {
-    poseProvider.setCurrentFrameNumber(dInd);
+    cv::Mat depthImg = cv::Mat::zeros(imgSize, CV_16S);
+    getDepthImg(depthImg, depthImgsPaths, rgbImgsPaths[imgId]);
 
-    cv::Mat depthImg;
-    std::string fName = vRgb[dInd].string();
-    std::string fNameOnly = vRgb[dInd].filename().string();
-    int prefInt, sufInt;
-    int minInd = -1; //depth img index
-    long double minPref = 1e100;
-
-    depthImg = cv::Mat::zeros(imgsSize, CV_16S);
-
-    if (v.size() > 0) {
-      //TODO: usual 000.png case
-      //000.000.png
-      if (std::regex_match(fNameOnly.c_str(), e)) {
-        extractNumbers(fNameOnly, prefInt, sufInt);
-        for (int cInd = 0; cInd < v.size(); cInd++)
-        {
-          int dPrefInt, dSufInt;
-          extractNumbers(v[cInd].filename().string(), dPrefInt, dSufInt);
-          long double val = abs(dPrefInt - prefInt)*1e8 + abs(dSufInt - sufInt);
-          if (val < minPref)
-          {
-            minInd = cInd;
-            minPref = val;
-          }
-        }
-
-        depthImg = cv::imread(v[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
-        cv::imwrite(depthDebugFld + "f" + std::to_string(dInd) + ".bmp", 255 / 10 * depthImg / 5000);
-      }
-    }
-
-    std::cout << fName << std::endl;
-    if (boost::filesystem::exists(fName))
+    std::string rgbImgName = rgbImgsPaths[imgId].string();
+    if (boost::filesystem::exists(rgbImgName))
     {
-      cv::Mat img = cv::imread(fName, 0);
-      cv::Mat outputImg;
-      cv::cvtColor(img, outputImg, CV_GRAY2BGR);
+      cv::Mat img = cv::imread(rgbImgName, 0);
+      cv::Mat outImg;
+      cv::cvtColor(img, outImg, CV_GRAY2BGR);
 
-      std::string fNameOutClean = outCleanFld + std::to_string(dInd) + ".bmp";
-      cv::imwrite(fNameOutClean, outputImg);
+      tracker.trackWithKLT(ID_SHIFT + imgId, img, outImg, depthImg);
 
-      tracker.trackWithKLT(img, outputImg, ID_SHIFT + dInd, depthImg);
-      //tracker.trackWithOrb(img, outputImg, dInd, depthImg);
-      std::string fNameOut = outFld + std::to_string(ID_SHIFT + dInd) + ".bmp";
-      cv::imwrite(fNameOut, outputImg);
+      std::string outImgName = outFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
+      cv::imwrite(outImgName, outImg);
     }
-    std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
-    dInd++;
+    std::cerr << ID_SHIFT + imgId << std::endl;
   }
 #endif
+
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
   //tracker.saveAllTracks(pathToSavedTracks);
 
-#if 0
+#if 1
   std::cerr << "postprocessing stuff\n";
-
-  dInd = imgsStartId;
-  while (dInd < vRgb.size())
+  for (imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
   {
-    poseProvider.setCurrentFrameNumber(dInd);
-
-    cv::Mat depthImg;
-    std::string fName = vRgb[dInd].string();
-    std::string fNameOnly = vRgb[dInd].filename().string();
-
-    std::cout << fName << std::endl;
-    if (boost::filesystem::exists(fName))
+    std::string rgbImgName = rgbImgsPaths[imgId].string();
+    if (boost::filesystem::exists(rgbImgName))
     {
-      cv::Mat img = cv::imread(fName, 0);
-      cv::Mat outputImg;
-      cv::cvtColor(img, outputImg, CV_GRAY2BGR);
+      cv::Mat img = cv::imread(rgbImgName, 0);
+      cv::Mat outImg;
+      cv::cvtColor(img, outImg, CV_GRAY2BGR);
 
-      tracker.drawFinalPointsTypes(img, outputImg, ID_SHIFT + dInd, depthImg);
+      tracker.drawFinalPointsTypes(ID_SHIFT + imgId, img, outImg);
 
-      std::string fNameOut = finalTrackTypesFld + std::to_string(ID_SHIFT + dInd) + ".bmp";
-      cv::imwrite(fNameOut, outputImg);
+      std::string outFTTImgName = finalTrackTypesFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
+      cv::imwrite(outFTTImgName, outImg);
     }
-    std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
-    dInd++;
+    std::cerr << ID_SHIFT + imgId << std::endl;
   }
 #endif
 
 #if 1
   std::cerr << "build tracks\n";
-  tracker.loadAllTracks(pathToSavedTracks);
+  tracker.loadTracksFromFile(pathToSavedTracks);
 
-  dInd = imgsStartId;
-  while (dInd < vRgb.size())
+  for (imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
   {
-    poseProvider.setCurrentFrameNumber(dInd);
-
-    std::string fName = vRgb[dInd].string();
-    std::cout << fName << std::endl;
-    if (boost::filesystem::exists(fName))
+    std::string rgbImgName = rgbImgsPaths[imgId].string();
+    if (boost::filesystem::exists(rgbImgName))
     {
-      cv::Mat img = cv::imread(fName, 0);
+      cv::Mat img = cv::imread(rgbImgName, 0);
       cv::Mat outputImg;
       cv::cvtColor(img, outputImg, CV_GRAY2BGR);
 
-      tracker.buildTracks(img, outputImg, ID_SHIFT + dInd);
+      tracker.buildTracks(img, outputImg, ID_SHIFT + imgId);
 
     }
-    std::cout << ID_SHIFT + dInd << " " << tracker.lostTracks.size() << std::endl;
-    dInd++;
+    std::cerr << ID_SHIFT + imgId << std::endl;
   }
 #endif
 
   fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
-  fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / vRgb.size());
-  fprintf(stderr, "Average fps: %.2fs\n", vRgb.size() / totalTime);
+  fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / rgbImgsPaths.size());
+  fprintf(stderr, "Average fps: %.2fs\n", rgbImgsPaths.size() / totalTime);
 #endif
 
-  std::cout << "Done" << std::endl;
+  std::cerr << "Done" << std::endl;
 
   return 0;
 }

@@ -2,19 +2,14 @@
 #include <unordered_map>
 
 struct CameraPose {
-  CameraPose() { }
+  CameraPose() {}
 
-  CameraPose(int frameId, cv::Mat const& RData, cv::Mat const& tData) :
-  frameId(frameId) {
+  CameraPose(cv::Mat const& RData, cv::Mat const& tData)
+  {
     RData.copyTo(R);
     tData.copyTo(t);
-
-    /*std::cerr << "frame id " << frameId << std::endl;
-    std::cerr << "R " << R << std::endl;
-    std::cerr << "t " << t << std::endl;*/
   }
 
-  int frameId;
   cv::Mat R;
   cv::Mat t;
 };
@@ -22,16 +17,11 @@ struct CameraPose {
 class CameraPoseProvider
 {
 public:
-  CameraPoseProvider();
-  ~CameraPoseProvider();
+  virtual int getCameraPoseForFrame(CameraPose &cameraPose, int frameId);
+  virtual int getCeresCameraForFrame(double * camera, int frameId);
+  virtual int getProjMatrForFrame(cv::Mat & projMatr, int frameId);
 
-  virtual void getCurrentPose(CameraPose& cameraPose); //last from history?
-  virtual void getPoseForFrame(CameraPose& cameraPose, int frameNum);
-
-  //should be protected
-  std::unordered_map<int, cv::Mat> poses;
 protected:
-  CameraPose curCameraPose; // or CameraPose*
-  std::vector<std::shared_ptr<CameraPose>> history;
-
+  //key: frameId
+  std::unordered_map<int, CameraPose> poses;
 };

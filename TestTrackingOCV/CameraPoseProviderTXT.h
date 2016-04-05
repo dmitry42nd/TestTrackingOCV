@@ -8,15 +8,13 @@ class CameraPoseProviderTXT :
 {
 public:
 	CameraPoseProviderTXT(std::string& pathToCameraPoses);
-	~CameraPoseProviderTXT();
 
-	void getCurrentPose(CameraPose& cameraPose) override;
-	void getPoseForFrame(CameraPose& cameraPose, int frameNum) override;
-
-	void setCurrentFrameNumber(int frameNum);
+  int getCameraPoseForFrame(CameraPose &cameraPose, int frameId) override;
+  int getProjMatrForFrame(cv::Mat & projMatr, int frameId) override;
+  //int getCeresCameraForFrame(double * camera, int frameNum) override;
 
 protected:
+  //void makeCeresCamera(double* camera, CameraPose const& cp);
 
-	int frameNum;
 };
 

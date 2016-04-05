@@ -5,21 +5,21 @@
 class Tracker
 {
 public:
-	Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize);
-  Tracker(TrajectoryArchiver &trajArchiver, cv::Size imSize, std::string pathToTrackTypes);
+	//Tracker(TrajectoryArchiver const& trajArchiver, CameraPoseProvider const& poseProvider, cv::Size imSize);
+	Tracker(TrajectoryArchiver & trajArchiver, CameraPoseProvider & poseProvider, cv::Size imSize);
 
-	void trackWithKLT(cv::Mat& m_nextImg, cv::Mat& outputFrame, int frameInd, cv::Mat& depthImg);
-  void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
-  void detectPointsOrb(int indX, int indY, cv::Mat & m_nextImg, cv::Mat & depthImg, cv::Mat & outputFrame, int frameInd);
+	void trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outImg, cv::Mat& depthImg);
+	void drawFinalPointsTypes(int frameId, cv::Mat const& img, cv::Mat &outImg);
+
+	//TODO: analytics?
 	void generateRocData(std::ofstream &file, int maxThrErr);
-	void saveAllTracks(std::string& pathToSaveFolder);
-	void drawFinalPointsTypes(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd, cv::Mat &depthImg);
 
-	void loadAllTracks(std::string &pathToAllTracks);
+	void loadTracksFromFile(std::string &pathToAllTracks);
 	void buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd);
 
-	//cv::Mat calcGridPointDistribution();
-
+	//orb stuff
+#if 0
+	void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
 	std::vector<cv::KeyPoint> m_prevKeypoints;
 	std::vector<cv::KeyPoint> m_nextKeypoints;
 
@@ -29,44 +29,35 @@ public:
 
 	cv::BFMatcher *m_orbMatcher;
 	cv::ORB *orb;
-
-	std::vector<std::shared_ptr<Track>> prevTracks, curTracks, lostTracks;
-
-	int kltPtThr = 200;
-	cv::Mat prevImg;
-	int wx, wy;
-	std::vector<std::vector<cv::Mat>> detMasks;
-	cv::Size imSize;
-
-	double dfx = 567.6;
-	double dfy = 570.2;
-	double dcx = 324.7;
-	double dcy = 250.1;
-
-	double cfx = 535.4;
-	double cfy = 539.2;
-	double ccx = 320.1;
-	double ccy = 247.6;
-
-	double trackThr = 70;
+#endif
 
 protected:
-  typedef std::pair<int, int> Coords;
+	typedef std::pair<int, int> Coords;
 
-	void createNewTrack(cv::Point2f point, int frameCnt, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
-	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
-	void detectPoints(int indX, int indY, cv::Mat &m_nextImg, cv::Mat& depthImg, cv::Mat& outputFrame, int frameInd);
-	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
-	void defineTrackType(std::shared_ptr<Track> track, double errThr);
-	void undistPoint(cv::Point2f const& point, cv::Point2d & undist);
-	void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np);
+	std::vector<std::shared_ptr<Track>> prevTracks, curTracks, lostTracks;
+	cv::Mat prevImg;
+	cv::Size imgSize;
 
-  std::string pathToTrackTypes;
+	const int kltPointsMin   = 200;
+	const double optFlowThr  = 70;
+	const double backProjThr = 80;
+
 	std::vector<std::pair<double,bool>> errs_v;
 	cv::Ptr<cv::FastFeatureDetector> fastDetector;
 	cv::Mat K, dist;
 
+	int wx, wy;
+	std::vector<std::vector<cv::Mat>> detMasks;
+
+	void createNewTrack(cv::Point2f point, int frameId, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
+	cv::Mat calcStatsByQuadrant(int wx, int wy, int ptNum, std::vector<std::shared_ptr<Track>> const& curTracks);
+	void detectPoints(int indX, int indY, cv::Mat const& img, cv::Mat& depthImg, cv::Mat& outImg, int frameId);
+	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
+	void defineTrackType(std::shared_ptr<Track> track);
+	void undistPoint(cv::Point2f const& point, cv::Point2d & undist);
+	void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np);
 private:
-	TrajectoryArchiver trajArchiver;
+	TrajectoryArchiver & trajArchiver;
+	CameraPoseProvider & poseProvider;
 };
 
