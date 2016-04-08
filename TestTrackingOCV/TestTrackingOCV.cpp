@@ -8,6 +8,7 @@
 #include "Tracker.h"
 #include "CameraPoseProviderTXT.h"
 #include "TrajectoryArchiver.h"
+#include "DynamicTrajectoryEstimator.h"
 
 #define ID_SHIFT 601
 
@@ -39,7 +40,7 @@ void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, 
     if (std::regex_match(fName.c_str(), e))
     {
       extractNumbers(fName, prefInt, sufInt);
-      for (int cInd = 0; cInd < depthImgsPaths.size(); cInd++)
+      for (decltype(depthImgsPaths.size()) cInd = 0; cInd < depthImgsPaths.size(); cInd++)
       {
         int dPrefInt, dSufInt;
         extractNumbers(depthImgsPaths[cInd].filename().string(), dPrefInt, dSufInt);
@@ -71,8 +72,6 @@ int main()
   //last frame must have?
   if(i != size-1) std::cerr << size-1 << std::endl;
 #else
-  clock_t tStart = clock();
-
   cv::FileStorage fs("settings.yaml", cv::FileStorage::READ);
 
   std::string rootFld            = fs["root"];
@@ -98,14 +97,16 @@ int main()
   sort(depthImgsPaths.begin(), depthImgsPaths.end());
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
-  TrajectoryArchiver    trajArchiver(pathToSavedTracks);
 
+#if 0
   cv::Size imgSize = cv::imread(rgbImgsPaths.front().string()).size();
+
+  TrajectoryArchiver trajArchiver(pathToSavedTracks);
   Tracker tracker(trajArchiver, poseProvider, imgSize);
 
-#if 1
-  int imgId;
-  for (imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
+  clock_t tStart = clock();
+
+  for (decltype(rgbImgsPaths.size())  imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
   {
     cv::Mat depthImg = cv::Mat::zeros(imgSize, CV_16S);
     getDepthImg(depthImg, depthImgsPaths, rgbImgsPaths[imgId]);
@@ -124,14 +125,15 @@ int main()
     }
     std::cerr << ID_SHIFT + imgId << std::endl;
   }
-#endif
 
   double totalTime = (double)(clock() - tStart) / CLOCKS_PER_SEC;
-  //tracker.saveAllTracks(pathToSavedTracks);
+  fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
+  fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / rgbImgsPaths.size());
+  fprintf(stderr, "Average fps: %.2fs\n", rgbImgsPaths.size() / totalTime);
 
-#if 1
-  std::cerr << "postprocessing stuff\n";
-  for (imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
+
+  std::cerr << "final tracks types\n";
+  for (decltype(rgbImgsPaths.size()) imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
   {
     std::string rgbImgName = rgbImgsPaths[imgId].string();
     if (boost::filesystem::exists(rgbImgName))
@@ -150,28 +152,34 @@ int main()
 #endif
 
 #if 1
-  std::cerr << "build tracks\n";
-  tracker.loadTracksFromFile(pathToSavedTracks);
+  std::cerr << "build dynamic tracks\n";
 
-  for (imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
+  std::vector<ImgPath> fImgsPaths;
+  copy(boost::filesystem::directory_iterator(finalTrackTypesFld), boost::filesystem::directory_iterator(), std::back_inserter(fImgsPaths));
+  sort(fImgsPaths.begin(), fImgsPaths.end());
+
+  DynamicTrajectoryEstimator DTE(poseProvider);
+  DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
+
+  for (int imgId = 0; ID_SHIFT + imgId < 931; imgId+=SOME_STEP)
   {
-    std::string rgbImgName = rgbImgsPaths[imgId].string();
+    std::string rgbImgName = fImgsPaths[imgId].string();
     if (boost::filesystem::exists(rgbImgName))
     {
       cv::Mat img = cv::imread(rgbImgName, 0);
-      cv::Mat outputImg;
-      cv::cvtColor(img, outputImg, CV_GRAY2BGR);
+      cv::Mat outImg;
+      cv::cvtColor(img, outImg, CV_GRAY2BGR);
 
-      tracker.buildTracks(img, outputImg, ID_SHIFT + imgId);
+      DTE.buildTracks(ID_SHIFT + imgId, img, outImg);
 
+      std::string outFTTImgName = finalTrackTypesFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
+      cv::imwrite(outFTTImgName, outImg);
     }
-    std::cerr << ID_SHIFT + imgId << std::endl;
+    std::cout << ID_SHIFT + imgId << std::endl;
   }
 #endif
 
-  fprintf(stderr, "Total time taken: %.2fs\n", totalTime);
-  fprintf(stderr, "Average time per frame taken: %.4fs\n", totalTime / rgbImgsPaths.size());
-  fprintf(stderr, "Average fps: %.2fs\n", rgbImgsPaths.size() / totalTime);
+
 #endif
 
   std::cerr << "Done" << std::endl;

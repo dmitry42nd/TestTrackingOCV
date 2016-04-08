@@ -5,8 +5,17 @@
 #include <utility>
 namespace fs = boost::filesystem;
 
+//kinect
+static double k_data[9] = {522.97697, 0.0,       318.47217,
+                           0.0,       522.58746, 256.49968,
+                           0.0,       0.0,       1.0};
+static double dist_data[4] = {0.18962, -0.38214, 0, 0};
+
 CameraPoseProviderTXT::CameraPoseProviderTXT(std::string& pathToCameraPoses)
 {
+  K = cv::Mat(3, 3, CV_64F, k_data);
+  dist = cv::Mat(1,4, CV_64F, dist_data);
+
   poses.clear();
   std::ifstream cameraPosesData(pathToCameraPoses);
   int frameId;

@@ -3025,13 +3025,13 @@
 \newif\if@IEEEeqnarrayboxnojot% flag to indicate if the environment was called as the star form
 \@IEEEeqnarrayboxnojotfalse
 
-\newif\if@advanceIEEEeqncolcnt% tracks if the environment should advance the col counter
+\newif\if@advanceIEEEeqncolcnt% dynamicTracks if the environment should advance the col counter
 % allows a way to make an \IEEEeqnarraybox that can be used within an \IEEEeqnarray
 % used by IEEEeqnarraymulticol so that it can work properly in both
 \@advanceIEEEeqncolcnttrue
 
-\newcount\@IEEEeqnnumcols % tracks how many IEEEeqnarray cols are defined
-\newcount\@IEEEeqncolcnt  % tracks how many IEEEeqnarray cols the user actually used
+\newcount\@IEEEeqnnumcols % dynamicTracks how many IEEEeqnarray cols are defined
+\newcount\@IEEEeqncolcnt  % dynamicTracks how many IEEEeqnarray cols the user actually used
 
 
 % The default math style used by the columns
@@ -3760,7 +3760,7 @@ $$\@ignoretrue}
       % may later alter the meaning of a line with commands such as \IEEEyessubnumber. So, to handle
       % these cases we have to record the current values of the (sub)equation counters and revert back
       % to them if the next line is changed or never comes. The \if@IEEEeqnumpreadv, \if@IEEEsubeqnumpreadv
-      % and \@IEEEsubeqnnumrollback stuff tracks this.
+      % and \@IEEEsubeqnnumrollback stuff dynamicTracks this.
       % The logic to handle all this is surprisingly complex, but a nice feature of the approach here is
       % that the equation counters and labels remain valid for what the line would be unless a
       % \IEEEyessubnumber et al. later changes it. So, any hyperref links are always correct.
@@ -3953,7 +3953,7 @@ $$\@ignoretrue}
 % use a name that is easier to remember
 \let\@IEEEBPcurnum=\@IEEEtrantmpcountA%
 \@IEEEBPcurnum=0%
-% tracks number of columns in the preamble
+% dynamicTracks number of columns in the preamble
 \@IEEEeqnnumcols=0%
 % record the default end glues
 \edef\@IEEEBPstartglue{\@IEEEeqnarraycolSEPdefaultstart}%
@@ -4583,7 +4583,7 @@ between column types.}%
 \def\@IEEEauthorblockNinterlinespace{2.6ex}
 \def\@IEEEauthorblockAinterlinespace{2.75ex}
 
-% This tracks the required strut size.
+% This dynamicTracks the required strut size.
 % See the \@IEEEauthorhalign command for the actual default value used.
 \def\@IEEEauthorblockXinterlinespace{2.7ex}
 

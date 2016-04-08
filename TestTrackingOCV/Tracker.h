@@ -14,9 +14,6 @@ public:
 	//TODO: analytics?
 	void generateRocData(std::ofstream &file, int maxThrErr);
 
-	void loadTracksFromFile(std::string &pathToAllTracks);
-	void buildTracks(cv::Mat &m_nextImg, cv::Mat &outputFrame, int frameInd);
-
 	//orb stuff
 #if 0
 	void trackWithOrb(cv::Mat & m_nextImg, cv::Mat & outputFrame, int frameInd, cv::Mat & depthImg);
@@ -34,19 +31,24 @@ public:
 protected:
 	typedef std::pair<int, int> Coords;
 
-	std::vector<std::shared_ptr<Track>> prevTracks, curTracks, lostTracks;
+	std::vector<std::shared_ptr<Track>> prevTracks, curTracks;
+	std::vector<std::shared_ptr<Track>> lostTracks;
+
 	cv::Mat prevImg;
 	cv::Size imgSize;
 
 	const int kltPointsMin   = 200;
 	const double optFlowThr  = 70;
 	const double backProjThr = 80;
+  const int wx = 2;
+	const int wy = 2;
 
 	std::vector<std::pair<double,bool>> errs_v;
 	cv::Ptr<cv::FastFeatureDetector> fastDetector;
-	cv::Mat K, dist;
+	cv::Mat const& K;
+	cv::Mat const& dist;
 
-	int wx, wy;
+
 	std::vector<std::vector<cv::Mat>> detMasks;
 
 	void createNewTrack(cv::Point2f point, int frameId, cv::KeyPoint const &keyPt, cv::Mat const &desc, double depth = 0);
@@ -55,7 +57,7 @@ protected:
 	std::vector<cv::KeyPoint> filterPoints(int wx, int wy, std::vector<cv::KeyPoint>& keyPts);
 	void defineTrackType(std::shared_ptr<Track> track);
 	void undistPoint(cv::Point2f const& point, cv::Point2d & undist);
-	void getProjectionAndNorm(double *camera, double *point, cv::Point2f & pp, cv::Point3f & np);
+	void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);
 private:
 	TrajectoryArchiver & trajArchiver;
 	CameraPoseProvider & poseProvider;

@@ -26,5 +26,7 @@
 #include "glog/logging.h"
 
 #define PI 3.14159265
+#define SOME_STEP 10
+bool ifTracksEnd(int frameId);
 
 // TODO: reference additional headers your program requires here
