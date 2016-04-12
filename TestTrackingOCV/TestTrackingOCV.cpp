@@ -160,8 +160,9 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
-  //DTE.buildTrack(654, 719);
-  DTE.buildTrack(783, 830);
+  //DTE.buildTrack(616, 639);
+  DTE.buildTrack(654, 719);
+  //DTE.buildTrack(783, 830);
 
   /*for (int imgId = 0; ID_SHIFT + imgId < 654; imgId++)
   {
