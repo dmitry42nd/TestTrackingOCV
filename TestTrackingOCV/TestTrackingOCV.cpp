@@ -160,8 +160,10 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
+  //DTE.buildTrack(654, 719);
+  DTE.buildTrack(783, 830);
 
-  for (int imgId = 0; ID_SHIFT + imgId < 931; imgId+=SOME_STEP)
+  /*for (int imgId = 0; ID_SHIFT + imgId < 654; imgId++)
   {
     std::string rgbImgName = fImgsPaths[imgId].string();
     if (boost::filesystem::exists(rgbImgName))
@@ -170,13 +172,11 @@ int main()
       cv::Mat outImg;
       cv::cvtColor(img, outImg, CV_GRAY2BGR);
 
-      DTE.buildTracks(ID_SHIFT + imgId, img, outImg);
-
       std::string outFTTImgName = finalTrackTypesFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
       cv::imwrite(outFTTImgName, outImg);
     }
     std::cout << ID_SHIFT + imgId << std::endl;
-  }
+  }*/
 #endif
 
 
