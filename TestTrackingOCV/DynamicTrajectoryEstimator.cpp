@@ -4,7 +4,8 @@
 #include <boost/ref.hpp>
 #include <boost/type_traits/remove_reference.hpp>
 
-typedef std::vector<boost::reference_wrapper<std::vector<std::shared_ptr<TrackedPoint>>::const_iterator>> pointsIterVector;
+typedef std::vector<std::vector<std::shared_ptr<TrackedPoint>>> histVector;
+typedef std::vector<std::vector<std::shared_ptr<TrackedPoint>>::const_iterator> histIterVector;
 
 int color;
 DynamicTrajectoryEstimator::DynamicTrajectoryEstimator(CameraPoseProvider& poseProvider) :
@@ -124,33 +125,22 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
 
 
 void filterByMask(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
-                  pointsIterVector &its) {
+                  histVector &its) {
 
-  boost::remove_reference<decltype(its)>::type::iterator its_result, its_first;
-  its_result = its_first = its.begin();
-
-  boost::remove_reference<decltype(vF)>::type::iterator vF_result, vF_first;
-  vF_result = vF_first = vF.begin();
-
-  boost::remove_reference<decltype(vF)>::type::iterator vL_result, vL_first;
-  vL_result = vL_first = vL.begin();
+  histVector its_;
+  std::vector<cv::Point2d> vF_, vL_;
 
   for(decltype(vF.size()) i = 0; i < vF.size(); i++) {
     if (mask.at<char>(0, i)) {
-      *its_result = *its_first;
-      ++its_result;
-
-      *vF_result = *vF_first;
-      ++vF_result;
-
-      *vL_result = *vL_first;
-      ++vL_result;
-
+      vF_.push_back(vF[i]);
+      vL_.push_back(vL[i]);
+      its_.push_back(its[i]);
     }
-    ++its_first;
-    ++vF_first;
-    ++vL_first;
   }
+
+  vF_.swap(vF);
+  vL_.swap(vL);
+  its_.swap(its);
 }
 
 
@@ -161,7 +151,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
   objectPoints.clear();
 
   std::vector<cv::Point2d>  unPointsF, unPointsL;
-  pointsIterVector its;
+  histVector its;
 
   for (auto track : dynamicTracks) {
     if (track->history.front()->frameId <= frameIdF && track->history.back()->frameId >= frameIdL) {
@@ -174,8 +164,8 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       static const int HIST_LENGTH = 10;
       if (pF != track->history.end() && pL != track->history.end() && std::distance(pF, pL) > HIST_LENGTH) {
         unPointsF.push_back((*pF)->undist(K, dist));
-        unPointsL.push_back((*(pF+HIST_LENGTH))->undist(K, dist));
-        its.push_back(boost::ref(pF));
+        unPointsL.push_back((*(pL))->undist(K, dist));
+        its.push_back(track->history);
       }
     }
   }
@@ -217,35 +207,47 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       cv::triangulatePoints(projMatrF, projMatrL, unPointsF, unPointsL, points4D);
 
 #if 1
-      std::vector<std::pair<double, pointsIterVector::value_type>> projErrs;
+      std::vector<std::pair<double, int>> projErrs;
       for (int i = 0; i < points4D.cols /*== unPointsF.size()*/; i++) {
         double projErr1 = getProjErr(unPointsF[i], projMatrF, points4D.col(i));
         double projErr2 = getProjErr(unPointsL[i], projMatrL, points4D.col(i));
 
         double mean2Err = (projErr1 + projErr2) / 2;
         std::cout << mean2Err << std::endl;
-        pointsIterVector::value_type const& r = boost::ref(its[i]);
-        projErrs.push_back(std::make_pair(mean2Err, r));
+        projErrs.push_back(std::make_pair(mean2Err, i));
       }
 #endif
       //http://stackoverflow.com/questions/19842035/stdmap-how-to-sort-by-value-then-by-key
       std::sort(projErrs.begin(), projErrs.end());
 
+      histVector its_;
+      for(auto i = 0; i < 5; i++) {
+        int pId = projErrs[i].second;
+        its_.push_back(its[pId]);
+        objectPoints.push_back(getPoint3d(points4D.col(pId)));
+      }
+
       for(int fid = frameIdF; fid < frameIdL; fid++) {
         //get image points
         imagePoints.clear();
-        for(auto o = projErrs.begin(); o != projErrs.end() && o != projErrs.begin() + 5; ++o) {
-          imagePoints.push_back((*(o->second.get()))->undist(K, dist));
-          o->second.get()++;
+        //std::cout << "pew" << std::endl;
+        for(auto o : its_) {
+          auto p = std::find_if(o.cbegin(), o.cend(),
+                                 [fid](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == fid; });
+
+
+          //std::cout << (*p)->loc << std::endl;
+          imagePoints.push_back((*p)->undist(K,dist));
         }
+        //std::cout << std::endl;
 
         cv::Mat rvec, tvec, inliers;
         if(imagePoints.size() == 5)
           cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                             false, 200, 0.02, 0.9, inliers, cv::SOLVEPNP_EPNP);
+                             false, 200, 0.0001, 0.99, inliers, cv::SOLVEPNP_EPNP);
         else if(imagePoints.size() > 3)
           cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                             false, 200, 0.02, 0.9, inliers, cv::SOLVEPNP_DLS);
+                             false, 200, 0.0001, 0.99, inliers, cv::SOLVEPNP_DLS);
         else
           std::cerr << "algo failed 3\n";
 
