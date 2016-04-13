@@ -50,7 +50,7 @@ struct TriangulateError {
   const double *camera;
 };
 
-#if 0
+#if 1
 struct TriangulateError2 {
   TriangulateError2(const double oxF, const double oyF, const double *cF,
                     const double oxL, const double oyL, const double *cL)
@@ -75,8 +75,8 @@ struct TriangulateError2 {
     pF[1] += T(cF[4]);
     pF[2] += T(cF[5]);
 
-    T xpF = - pF[0] / pF[2];
-    T ypF = - pF[1] / pF[2];
+    T xpF = pF[0] / pF[2];
+    T ypF = pF[1] / pF[2];
 
     residuals[0] = T(xpF) - T(oxF);
     residuals[1] = T(ypF) - T(oyF);
@@ -94,8 +94,8 @@ struct TriangulateError2 {
     pL[1] += T(cL[4]);
     pL[2] += T(cL[5]);
 
-    T xpL = - pL[0] / pL[2];
-    T ypL = - pL[1] / pL[2];
+    T xpL = pL[0] / pL[2];
+    T ypL = pL[1] / pL[2];
 
     residuals[2] = T(xpL) - T(oxL);
     residuals[3] = T(ypL) - T(oyL);
@@ -108,7 +108,6 @@ struct TriangulateError2 {
 
   // Factory to hide the construction of the CostFunction object from
   // the client code.
-
   static ceres::CostFunction* Create(const double oxF,
                                      const double oyF,
                                      const double *cF,

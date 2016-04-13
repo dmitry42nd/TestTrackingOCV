@@ -76,7 +76,7 @@ double getProjErr(cv::Point2d p, cv::Mat const& projMatr, cv::Mat const& p4D)
 }
 
 
-double getProjErrCeres(cv::Point2d p, cv::Mat const& projMatr, double * point)
+double getProjErr(cv::Point2d p, cv::Mat const& projMatr, double * point)
 {
   double data[4] = {point[0], point[1],point[2],1.0};
   cv::Mat p4D = cv::Mat(4, 1, CV_64F, data);
@@ -87,6 +87,39 @@ double getProjErrCeres(cv::Point2d p, cv::Mat const& projMatr, double * point)
 }
 
 
+double getProjErrCeres(double *camera, double *point, cv::Point2d p2d)
+{
+  double p[3], xp, yp;
+  ceres::AngleAxisRotatePoint(camera, point, p);
+  p[0] += camera[3];
+  p[1] += camera[4];
+  p[2] += camera[5];
+  xp = p[0] / p[2];
+  yp = p[1] / p[2];
+
+  cv::Point2d p_ = cv::Point2d(xp, yp);
+  std::cout << xp - p2d.x << " " << yp - p2d.y << std::endl;
+  return  cv::norm(cv::Vec2d(p2d.x - p_.x, p2d.y - p_.y));
+}
+
+
+void DynamicTrajectoryEstimator::getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np) {
+  double p[3], xp, yp;
+  ceres::AngleAxisRotatePoint(camera, point, p);
+  p[0] += camera[3];
+  p[1] += camera[4];
+  p[2] += camera[5];
+  xp = -p[0] / p[2];
+  yp = -p[1] / p[2];
+
+  np = cv::Point3f(xp, yp, 1);
+  std::vector<cv::Point3f> vnp;
+  vnp.push_back(np);
+  std::vector<cv::Point2f> vpp;
+
+  cv::projectPoints(vnp, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), K, dist, vpp);
+  pp = vpp[0];
+}
 
 cv::Point3f getPoint3d(cv::Mat const& p4D)
 {
@@ -95,6 +128,10 @@ cv::Point3f getPoint3d(cv::Mat const& p4D)
   return cv::Point3d(p3D);
 }
 
+cv::Point3f getPoint3dCeres(double * p3D)
+{
+  return cv::Point3d(p3D[0],p3D[1],p3D[2]);
+}
 
 void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId)
 {
@@ -134,7 +171,7 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
     cv::Mat a = cv::Mat(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2),cp.at<double>(0,1)/cp.at<double>(0,2)));
     cv::Mat b = cv::Mat(cv::Point2d(imagePoints[i].x, imagePoints[i].y));
     double projErr = cv::norm(a-b);
-    std::cout << projErr << std::endl;
+    //std::cout << projErr << std::endl;
     errOut << projErr << std::endl;
     err.push_back(projErr);
 
@@ -217,23 +254,6 @@ void makeCeresCamera(double* camera, cv::Mat const& R, cv::Mat const& t) {
 
 }
 
-void DynamicTrajectoryEstimator::getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np) {
-  double p[3], xp, yp;
-  ceres::AngleAxisRotatePoint(camera, point, p);
-  p[0] += camera[3];
-  p[1] += camera[4];
-  p[2] += camera[5];
-  xp = -p[0] / p[2];
-  yp = -p[1] / p[2];
-
-  np = cv::Point3f(xp, yp, 1);
-  std::vector<cv::Point3f> vnp;
-  vnp.push_back(np);
-  std::vector<cv::Point2f> vpp;
-
-  cv::projectPoints(vnp, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), K, dist, vpp);
-  pp = vpp[0];
-}
 
 void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
 {
@@ -259,7 +279,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       static const int HIST_LENGTH = 10;
       if (pF != track->history.end() && pL != track->history.end() && std::distance(pF, pL) > HIST_LENGTH) {
         unPointsF.push_back((*pF)->undist(K, dist));
-        unPointsL.push_back((*pL)->undist(K, dist));
+        unPointsL.push_back((*pL )->undist(K, dist));
         its.push_back(track->history);
         cv::circle(outImg, (*pF)->loc, 3, cv::Scalar(0, 0, 200), -1);
         pointsF.push_back((*pF)->loc);
@@ -308,12 +328,10 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
 
       double *cameraF = new double[6];
       makeCeresCamera(cameraF, cv::Mat::eye(3,3,CV_64F), cv::Mat::zeros(1,3,CV_64F));
-
       double *cameraL = new double[6];
       makeCeresCamera(cameraL, R, t);
 
-      //unPoints.push_back(oPoints.back()->undist(K, dist));
-      for(int i = 0; i < points4D.cols; i++) {
+      for(auto i = 0; i < points4D.cols; i++) {
         double *point = new double[3];
 
         cv::Mat p4D;
@@ -323,10 +341,8 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
         point[2] = p4D.at<double>(0,2)/p4D.at<double>(0,3);
         std::cout << point[0] << " " << point[1] << " " << point[2] << std::endl;
 
-        ceres::CostFunction *cost_function1 = TriangulateError::Create(unPointsF[i].x, unPointsF[i].y, cameraF);
-        ceres::CostFunction *cost_function2 = TriangulateError::Create(unPointsL[i].x, unPointsL[i].y, cameraL);
-        problem.AddResidualBlock(cost_function1, NULL, point);
-        problem.AddResidualBlock(cost_function2, NULL, point);
+        ceres::CostFunction *cost_function = TriangulateError2::Create(unPointsF[i].x, unPointsF[i].y, cameraF, unPointsL[i].x, unPointsL[i].y, cameraL);
+        problem.AddResidualBlock(cost_function, NULL, point);
         points.push_back(point);
       }
       std::cout << std::endl;
@@ -342,15 +358,19 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
 
       std::vector<std::pair<double, int>> projErrs;
       for (int i = 0; i < points4D.cols /*== unPointsF.size()*/; i++) {
-        double projErr1 = getProjErrCeres(unPointsF[i], projMatrF, points[i]);
-        double projErr2 = getProjErrCeres(unPointsL[i], projMatrL, points[i]);
 
-        double mean2Err = (projErr1 + projErr2) / 2;
-        std::cout << mean2Err << std::endl;
-        projErrs.push_back(std::make_pair(mean2Err, i));
+        //double pointErr1 = getProjErrCeres(cameraF, points[i], unPointsF[i]);
+        double pointErr2 = getProjErrCeres(cameraL, points[i], unPointsL[i]);
+        std::cout << pointErr2 << std::endl;
+
+        //double projErr1 = getProjErrCeres(unPointsF[i], projMatrF, points[i]);
+        double projErr2 = getProjErr(unPointsL[i], projMatrL, points[i]);
+        std::cout << projErr2 << std::endl;
+
+        //double mean2Err = (projErr1 + projErr2) / 2;
+        //std::cout << mean2Err << std::endl;
+        projErrs.push_back(std::make_pair(projErr2 , i));
       }
-
-      return;
 
 #if 0
       std::vector<std::pair<double, int>> projErrs;
@@ -363,6 +383,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
         projErrs.push_back(std::make_pair(mean2Err, i));
       }
 #endif
+
       //http://stackoverflow.com/questions/19842035/stdmap-how-to-sort-by-value-then-by-key
       std::sort(projErrs.begin(), projErrs.end());
 
@@ -372,7 +393,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       for(auto i = 0; i < projErrs.size(); i++) {
         int pId = projErrs[i].second;
         its_.push_back(its[pId]);
-        objectPoints.push_back(getPoint3d(points4D.col(pId)));
+        objectPoints.push_back(getPoint3dCeres(points[pId]));
       }
 
 
