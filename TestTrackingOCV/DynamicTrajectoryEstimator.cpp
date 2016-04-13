@@ -279,7 +279,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       static const int HIST_LENGTH = 10;
       if (pF != track->history.end() && pL != track->history.end() && std::distance(pF, pL) > HIST_LENGTH) {
         unPointsF.push_back((*pF)->undist(K, dist));
-        unPointsL.push_back((*pL )->undist(K, dist));
+        unPointsL.push_back((*(pF+10) )->undist(K, dist));
         its.push_back(track->history);
         cv::circle(outImg, (*pF)->loc, 3, cv::Scalar(0, 0, 200), -1);
         pointsF.push_back((*pF)->loc);
@@ -294,7 +294,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
   if (its.size() >= 5) {
     //get R, t from frameId to frameId + SOME_STEP
     cv::Mat mask;
-    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.95, 0.002, mask);
+    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.99, 0.0005, mask);
     //std::cerr << mask.type() << ": " << mask.t() << std::endl;
     //std::cerr << E << std::endl;
 
@@ -348,7 +348,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       std::cout << std::endl;
 
       ceres::Solver::Options options;
-      options.linear_solver_type = ceres::DENSE_SCHUR;
+      options.linear_solver_type = ceres::DENSE_QR;
       ceres::Solver::Summary summary;
       ceres::Solve(options, &problem, &summary);
 
@@ -416,13 +416,13 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
         std::string outImgName =  "dout/" + std::to_string(fid) + ".bmp";
         cv::imwrite(outImgName, outImg);
 
-        cv::Mat rvec, tvec, inliers;
+        cv::Mat rvec, tvec;
         if(imagePoints.size() >= 5)
           cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                             false, 200, 0.002, 0.95, inliers, cv::SOLVEPNP_EPNP);
+                             false, 100, 0.03, 0.99, inliers, cv::SOLVEPNP_EPNP);
         else if(imagePoints.size() > 3)
           cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                             false, 200, 0.002, 0.95, inliers, cv::SOLVEPNP_DLS);
+                             false, 100, 0.03, 0.99, inliers, cv::SOLVEPNP_DLS);
         else
           std::cerr << "algo failed 3\n";
 

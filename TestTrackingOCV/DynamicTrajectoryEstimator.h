@@ -36,6 +36,7 @@ protected:
   std::ofstream dataOut;
   std::ofstream errOut;
   cv::Mat img;
+  cv::Mat inliers;
   void filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
                          std::vector<cv::Point2d> &v, histVector &its, int i);
   void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);

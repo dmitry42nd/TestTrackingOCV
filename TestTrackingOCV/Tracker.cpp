@@ -159,7 +159,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat const& img, cv::Mat& dept
     }*/
 
     //TODO: magic numbers 16, 16
-    std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(16, 16, keyPts);
+    std::vector<cv::KeyPoint> keyPtsFiltered = filterPoints(4, 4, keyPts);
 
     auto reduction = keyPtsFiltered.size() * 100 / keyPtsSize;
     std::cout << "key point reduction: " << reduction << " % " << keyPtsSize << ":" << keyPtsFiltered.size() << "\n";
@@ -380,7 +380,7 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
       for (size_t i = 0; i < prevTracks.size(); i++) {
         cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
         double trackDist = norm(err);
-        if (trackDist < optFlowThr && status[i] &&
+        if (trackDist < optFlowThr && status[i] && err_[i] < 0.2 &&
             nextCorners[i].x >= 0 && nextCorners[i].x < img.cols &&
             nextCorners[i].y >= 0 && nextCorners[i].y < img.rows) {
           cv::Point2i pt;
