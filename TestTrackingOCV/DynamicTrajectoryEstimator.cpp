@@ -156,7 +156,8 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
   std::vector<cv::Mat> oX;
 
   std::vector<double> err;
-  for(int i = 0; i < objectPoints.size(); i++) {
+  for(int j = 0; j < inliers.rows; j++) {
+    int i = inliers.row(j).at<int>(0,0);
     cv::Mat point = cv::Mat(objectPoints[i]);
     cv::vconcat(point, cv::Mat::ones(1,1,CV_64F),point);
     //std::cout << point << std::endl;
@@ -387,6 +388,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       //http://stackoverflow.com/questions/19842035/stdmap-how-to-sort-by-value-then-by-key
       std::sort(projErrs.begin(), projErrs.end());
 
+      std::vector<double *> objectPoints_;
       objectPoints.clear();
       histVector its_;
       std::cout << projErrs.size() << std::endl;
@@ -394,8 +396,15 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
         int pId = projErrs[i].second;
         its_.push_back(its[pId]);
         objectPoints.push_back(getPoint3dCeres(points[pId]));
+        double *objP = new double[3];
+        objP[0] = objectPoints.back().x;
+        objP[1] = objectPoints.back().y;
+        objP[2] = objectPoints.back().z;
       }
 
+      std::vector<double *> observedPoints;
+      std::vector<double *> cameras_;
+      ceres::Problem mainProblem;
 
       for(int fid = frameIdF; fid < frameIdL; fid++) {
         //get image points
@@ -411,6 +420,10 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
                                  [fid](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == fid; });
           cv::circle(outImg, (*p)->loc, 3, cv::Scalar(0, 0, 200), -1);
           imagePoints.push_back((*p)->undist(K,dist));
+          double * op = new double[2];
+          op[0] = imagePoints.back().x;
+          op[1] = imagePoints.back().y;
+          observedPoints.push_back(op);
         }
 
         std::string outImgName =  "dout/" + std::to_string(fid) + ".bmp";
@@ -426,7 +439,23 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
         else
           std::cerr << "algo failed 3\n";
 
-        std::cout << inliers.t() << std::endl;
+        double *camera = new double[6];
+        for (auto i = 0; i < 3; i++) {
+          camera[i] = rvec.at<double>(i, 0);
+        }
+        for (auto i = 0; i < 3; i++) {
+          camera[i + 3] = tvec.at<double>(i, 0);
+        }
+        cameras_.push_back(camera);
+
+        for(int j = 0; j < inliers.rows; j++) {
+          int i = inliers.row(j).at<int>(0,0);
+
+        }
+
+        std::cout << inliers.type() << " " << inliers.t() << std::endl;
+
+
         setObjectWorldCoordsOnFrame(rvec, tvec, fid);
       }
     } else {
