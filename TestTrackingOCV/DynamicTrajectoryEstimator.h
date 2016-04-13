@@ -4,6 +4,9 @@
 #include "Tracker.h"
 #include "Track.h"
 
+typedef std::vector<std::vector<std::shared_ptr<TrackedPoint>>> histVector;
+typedef std::vector<std::vector<std::shared_ptr<TrackedPoint>>::const_iterator> histIterVector;
+
 class DynamicTrajectoryEstimator
 {
 public:
@@ -29,6 +32,13 @@ protected:
   CameraPoseProvider & poseProvider;
   cv::Mat const& K;
   cv::Mat const& dist;
+
+  std::ofstream dataOut;
+  std::ofstream errOut;
+  cv::Mat img;
+  void filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
+                         std::vector<cv::Point2d> &v, histVector &its, int i);
+  void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);
 
   //std::vector<cv::Point2d> unPointsF, unPointsL;
 
