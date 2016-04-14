@@ -37,12 +37,15 @@ protected:
   std::ofstream errOut;
   cv::Mat img;
   cv::Mat inliers;
+  std::vector<cv::Mat> oldrvec;
+  std::vector<cv::Mat> oldtvec;
+  histVector its_;
   void filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
                          std::vector<cv::Point2d> &v, histVector &its, int i);
   void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);
 
   //std::vector<cv::Point2d> unPointsF, unPointsL;
 
-  void setObjectWorldCoordsOnFrame(cv::Mat const& R, cv::Mat const& t, int frameId);
+  void setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers);
 };
 

@@ -126,72 +126,40 @@ struct TriangulateError2 {
 
 
 struct TriangulateError3 {
-  TriangulateError3(const double oxF, const double *c)
-      : oxF(oxF), oyF(oyF), cF(cF),
-        oxL(oxL), oyL(oyL), cL(cL)
+  TriangulateError3(const double ox, const double oy)
+      : ox(ox), oy(oy)
   { }
 
   template <typename T>
-  bool operator()(const T* const point,
+  bool operator()(const T* const camera,
+                  const T* const point,
                   T* residuals) const {
 
-    T pF[3];
+    T p[3];
 
-    //very important part!
-    T rotF[3];
-    rotF[0] = T(cF[0]);
-    rotF[1] = T(cF[1]);
-    rotF[2] = T(cF[2]);
-    ceres::AngleAxisRotatePoint(rotF, point, pF);
+    ceres::AngleAxisRotatePoint(camera, point, p);
 
-    pF[0] += T(cF[3]);
-    pF[1] += T(cF[4]);
-    pF[2] += T(cF[5]);
+    p[0] += T(camera[3]);
+    p[1] += T(camera[4]);
+    p[2] += T(camera[5]);
 
-    T xpF = pF[0] / pF[2];
-    T ypF = pF[1] / pF[2];
+    T xpF = p[0] / p[2];
+    T ypF = p[1] / p[2];
 
-    residuals[0] = T(xpF) - T(oxF);
-    residuals[1] = T(ypF) - T(oyF);
-
-    T pL[3];
-
-    //very important part!
-    T rotL[3];
-    rotL[0] = T(cL[0]);
-    rotL[1] = T(cL[1]);
-    rotL[2] = T(cL[2]);
-    ceres::AngleAxisRotatePoint(rotL, point, pL);
-
-    pL[0] += T(cL[3]);
-    pL[1] += T(cL[4]);
-    pL[2] += T(cL[5]);
-
-    T xpL = pL[0] / pL[2];
-    T ypL = pL[1] / pL[2];
-
-    residuals[2] = T(xpL) - T(oxL);
-    residuals[3] = T(ypL) - T(oyL);
-
-    /*residuals[0] /= T(2.0);
-    residuals[1] /= T(2.0);*/
+    residuals[0] = T(xpF) - T(ox);
+    residuals[1] = T(ypF) - T(oy);
 
     return true;
   }
 
   // Factory to hide the construction of the CostFunction object from
   // the client code.
-  static ceres::CostFunction* Create(const double oxF,
-                                     const double oyF,
-                                     const double *cF,
-                                     const double oxL,
-                                     const double oyL,
-                                     const double *cL) {
-    return (new ceres::AutoDiffCostFunction<TriangulateError3, 4, 3>(
-        new TriangulateError3(oxF, cF)));
+  static ceres::CostFunction* Create(const double ox,
+                                     const double oy) {
+    return (new ceres::AutoDiffCostFunction<TriangulateError3, 2, 6, 3>(
+        new TriangulateError3(ox, oy)));
   }
 
-  double oxL, oxF;
-  double oyL, oyF;
-  const double *cL, *cF;
+  double ox;
+  double oy;
 };
