@@ -163,3 +163,67 @@ struct TriangulateError3 {
   double ox;
   double oy;
 };
+
+
+struct ScaleError {
+  ScaleError(const double obs_x,
+             const double obs_y,
+             const double X_x,
+             const double X_y,
+             const double X_z,
+             const double *camera,
+             const double k)
+      : obs_x(obs_x), obs_y(obs_y), X_x(X_x), X_y(X_y), X_z(X_z), camera(camera), k(k)
+  { }
+
+  template <typename T>
+  bool operator()(const T* const s,
+                  /*const T* const R,*/
+                  const T* const v,
+                        T* residuals) const {
+    T p[3], point[3];
+    point[0] = s[0]*X_x + k*v[0];
+    point[1] = s[0]*X_y + k*v[1];
+    point[2] = s[0]*X_z + k*v[2];
+
+
+    //very important part!
+    T rot[3];
+    rot[0] = T(camera[0]);
+    rot[1] = T(camera[1]);
+    rot[2] = T(camera[2]);
+    ceres::AngleAxisRotatePoint(rot, point, p);
+
+    // camera[3,4,5] are the translation.
+    p[0] += T(camera[3]);
+    p[1] += T(camera[4]);
+    p[2] += T(camera[5]);
+
+    T xp = p[0] / p[2];
+    T yp = p[1] / p[2];
+
+    // The error is the difference between the predicted and observed position.
+    residuals[0] = T(xp) - T(obs_x);
+    residuals[1] = T(yp) - T(obs_y);
+
+    return true;
+  }
+
+  // Factory to hide the construction of the CostFunction object from
+  // the client code.
+  static ceres::CostFunction* Create(const double obs_x,
+                                     const double obs_y,
+                                     const double X_x,
+                                     const double X_y,
+                                     const double X_z,
+                                     const double *camera,
+                                     const double k) {
+    return (new ceres::AutoDiffCostFunction<ScaleError, 2, 1, /*3, */3>(
+        new ScaleError(obs_x, obs_y, X_x, X_y, X_z, camera, k)));
+  }
+
+  const double k;
+  const double obs_x, obs_y;    //2
+  const double X_x, X_y, X_z;      //3
+  const double *camera; //3
+};

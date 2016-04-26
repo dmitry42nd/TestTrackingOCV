@@ -62,4 +62,3 @@ private:
 	TrajectoryArchiver & trajArchiver;
 	CameraPoseProvider & poseProvider;
 };
-

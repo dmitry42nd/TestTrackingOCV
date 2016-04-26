@@ -22,6 +22,8 @@ DynamicTrajectoryEstimator::DynamicTrajectoryEstimator(CameraPoseProvider& poseP
 
 }
 
+static const int HIST_LENGTH = 10;
+static const int MIN_POINTS  = 5;
 
 void DynamicTrajectoryEstimator::loadOnlyDynamicsTracksFromFile(std::string &pathToAllTracks)
 {
@@ -98,7 +100,7 @@ double getProjErrCeres(double *camera, double *point, cv::Point2d p2d)
   yp = p[1] / p[2];
 
   cv::Point2d p_ = cv::Point2d(xp, yp);
-  std::cout << xp - p2d.x << " " << yp - p2d.y << std::endl;
+  //std::cout << xp - p2d.x << " " << yp - p2d.y << std::endl;
   return  cv::norm(cv::Vec2d(p2d.x - p_.x, p2d.y - p_.y));
 }
 
@@ -133,7 +135,10 @@ cv::Point3f getPoint3dCeres(double * p3D)
   return cv::Point3d(p3D[0],p3D[1],p3D[2]);
 }
 
-void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers)
+
+void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers,
+  std::vector<cv::Point3d> &Xs,
+  std::vector<cv::Point2d> &projXs_debug)
 {
   cv::Mat line = cv::Mat::zeros(1, 4, CV_64F);
   line.at<double>(0,3) = 1;
@@ -154,15 +159,12 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
   owTs.push_back(owT);
   //std::cerr << owT << std::endl;
 
-  std::vector<cv::Mat> oX;
-
   imagePoints.clear();
-  for(auto o : its_) {
+  for(auto o : hists_) {
     auto p = std::find_if(o.cbegin(), o.cend(),
                           [frameId](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameId; });
     imagePoints.push_back((*p)->undist(K,dist));
   }
-
 
   std::vector<double> err;
   for(int j = 0; j < inliers.rows; j++) {
@@ -174,25 +176,25 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
 
     cv::Mat wp = owT*point;
     //std::cout << wp.t() << std::endl;
-    //std::cout << color<< ", " << wp.at<double>(0,0) << ", " << wp.at<double>(0,1) << ", " << wp.at<double>(0,2) << std::endl;
-    dataOut << color<< ", " << wp.at<double>(0,0) << ", " << wp.at<double>(0,1) << ", " << wp.at<double>(0,2) << std::endl;
+    double x = wp.at<double>(0,0);
+    double y = wp.at<double>(0,1);
+    double z = wp.at<double>(0,2);
+    dataOut << color<< ", " << x << ", " << y << ", " << z << std::endl;
+    Xs.push_back(cv::Point3d(x,y,z));
 
+    //reprojection error
     cv::Mat cp = ocT*point;
+    projXs_debug.push_back(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
     //std::cout << cp << std::endl;
     cv::Mat a = cv::Mat(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
     cv::Mat b = cv::Mat(cv::Point2d(imagePoints[i].x, imagePoints[i].y));
     double projErr = cv::norm(a-b);
-    std::cout << projErr << std::endl;
+    //std::cout << projErr << std::endl;
     errOut << projErr << std::endl;
     err.push_back(projErr);
-
-    oX.push_back(wp);
   }
   color++;
-  //std::cerr << oX.size() << std::endl;
-  oXs.push_back(oX);
 }
-
 
 void filterByMask(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
                   histVector &its) {
@@ -257,20 +259,19 @@ void makeCeresCamera(double* camera, cv::Mat const& R, cv::Mat const& t) {
     camera[i+3] = t.at<double>(i, 0);
   }
 
-  std::cout << "camera" << std::endl;
+  /*std::cout << "camera" << std::endl;
   for(int i = 0; i < 6; i++) {
     std::cout << camera[i] << " ";
   }
-  std::cout << std::endl;
+  std::cout << std::endl;*/
 
 }
 
 
-void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
-{
+void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
   std::vector<cv::Point2d>  unPointsF, unPointsL;
-  std::vector<cv::Point2d>  pointsF;
-  histVector its;
+  std::vector<cv::Point2d>  pointsF_debug;
+  histVector hists;
 
   std::string ImgName = "../outProc/" + std::to_string(frameIdF) + ".bmp";
   img = cv::imread(ImgName,0);
@@ -280,19 +281,17 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
   for (auto track : dynamicTracks) {
     if (track->history.front()->frameId <= frameIdF && track->history.back()->frameId >= frameIdL) {
       auto pF = std::find_if(track->history.cbegin(), track->history.cend(),
-                            [frameIdF](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdF; });
+                             [frameIdF](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdF; });
 
       auto pL = std::find_if(pF, track->history.cend(),
                              [frameIdL](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdL; });
 
-      static const int HIST_LENGTH = 10;
       if (pF != track->history.end() && pL != track->history.end() && std::distance(pF, pL) > HIST_LENGTH) {
         unPointsF.push_back((*pF)->undist(K, dist));
-        unPointsL.push_back((*(pF+10) )->undist(K, dist));
-        its.push_back(track->history);
+        unPointsL.push_back((*(pF+HIST_LENGTH) )->undist(K, dist));
+        hists.push_back(track->history);
         cv::circle(outImg, (*pF)->loc, 3, cv::Scalar(0, 0, 200), -1);
-        pointsF.push_back((*pF)->loc);
-
+        pointsF_debug.push_back((*pF)->loc);
       }
     }
     std::string outImgName = std::to_string(frameIdF) + ".bmp";
@@ -300,7 +299,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
   }
 
   //std::cout << "got " << unPointsF.size() << " points for frame pair " << frameId << " - " << frameId + SOME_STEP << std::endl;
-  if (its.size() >= 5) {
+  if (hists.size() >= MIN_POINTS) {
     cv::Mat mask;
     cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.99, 0.0005, mask);
     //std::cerr << E << std::endl;
@@ -308,9 +307,10 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
     cv::Mat R, t;
     if (E.rows == 3 && E.cols == 3) {
       cv::recoverPose(E, unPointsF, unPointsL, R, t, 1.0, cv::Point2d(0, 0), mask);
+      //t*=10;
       //std::cerr << mask.type() << ": " << mask.t() << std::endl;
-      filterByMaskDebug(mask, unPointsF, unPointsL, pointsF, its, 2);
-      if(its.size() < 5) {
+      filterByMaskDebug(mask, unPointsF, unPointsL, pointsF_debug, hists, 2);
+      if(hists.size() < MIN_POINTS) {
         std::cerr << "algo failed 2\n";
         return;
       }
@@ -362,7 +362,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
         double reprojErr1 = getProjErrCeres(cameraF, points[i], unPointsF[i]);
         double reprojErr2 = getProjErrCeres(cameraL, points[i], unPointsL[i]);
         double mean2Err = (reprojErr1 + reprojErr2) / 2;
-        std::cout << mean2Err << std::endl;
+        //std::cout << mean2Err << std::endl;
         projErrs.push_back(std::make_pair(mean2Err , i));
       }
 
@@ -370,117 +370,245 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL)
       std::sort(projErrs.begin(), projErrs.end());
 
       objectPoints.clear();
-      std::vector<double *> objectPoints_;
-      std::cout << projErrs.size() << std::endl;
+      //std::cout << projErrs.size() << std::endl;
       for(auto i = 0; i < projErrs.size(); i++) {
         int pId = projErrs[i].second;
-        its_.push_back(its[pId]);
+        hists_.push_back(hists[pId]);
         objectPoints.push_back(getPoint3dCeres(points[pId]));
 
         double *objP = new double[3];
         objP[0] = objectPoints.back().x;
         objP[1] = objectPoints.back().y;
         objP[2] = objectPoints.back().z;
-        objectPoints_.push_back(objP);
+        objectPoints_ceres.push_back(objP);
       }
 
-      std::vector<double *> cameras_;
-      std::vector<int> fids_;
-      std::vector<cv::Mat> inliers_;
-      ceres::Problem mainProblem;
+    } else {
+      std::cerr << "five point failed\n";
+    }
+  }
+}
 
+
+void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
+      block1(frameIdF, frameIdL);
+
+      std::vector<int> fids_;
+      ceres::Problem mainProblem;
       for(int fid = frameIdF; fid < frameIdL; fid++) {
 
-        std::string ImgName = "../outProc/" + std::to_string(fid) + ".bmp";
+        /*std::string ImgName = "../outProc/" + std::to_string(fid) + ".bmp";
         img = cv::imread(ImgName,1);
         cv::Mat outImg;
-        img.copyTo(outImg);
+        img.copyTo(outImg);*/
+
 
         imagePoints.clear();
-        for(auto o : its_) {
+        for(auto o : hists_) {
           auto p = std::find_if(o.cbegin(), o.cend(),
                                  [fid](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == fid; });
-          cv::circle(outImg, (*p)->loc, 3, cv::Scalar(0, 0, 200), -1);
+          //cv::circle(outImg, (*p)->loc, 3, cv::Scalar(0, 0, 200), -1);
           imagePoints.push_back((*p)->undist(K,dist));
         }
 
-        std::string outImgName =  "dout/" + std::to_string(fid) + ".bmp";
-        cv::imwrite(outImgName, outImg);
+        /*std::string outImgName =  "dout/" + std::to_string(fid) + ".bmp";
+        cv::imwrite(outImgName, outImg);*/
 
         cv::Mat rvec, tvec;
         if(imagePoints.size() >= 5)
           cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                             false, 100, 0.03, 0.99, inliers, cv::SOLVEPNP_EPNP);
+                             false, 100, 0.03, 0.98, inliers, cv::SOLVEPNP_EPNP);
         else if(imagePoints.size() > 3)
           cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                             false, 100, 0.03, 0.99, inliers, cv::SOLVEPNP_DLS);
+                             false, 100, 0.03, 0.98, inliers, cv::SOLVEPNP_DLS);
         else
           std::cerr << "algo failed 3\n";
 
         if(inliers.rows > 0) {
-          oldrvec.push_back(rvec);
+          oldrvec.push_back(rvec); //just for debug
           oldtvec.push_back(tvec);
 
-          double *camera = new double[6];
+          std::vector<double> camera;
+          //double * camera = new double[6];
           for (auto i = 0; i < 3; i++) {
-            camera[i] = rvec.at<double>(i, 0);
+            //camera[i] = rvec.at<double>(i, 0);
+            camera.push_back(rvec.at<double>(i, 0));
           }
           for (auto i = 0; i < 3; i++) {
-            camera[i + 3] = tvec.at<double>(i, 0);
+            //camera[3 + i] = rvec.at<double>(i, 0);
+            camera.push_back(tvec.at<double>(i, 0));
           }
-          cameras_.push_back(camera);
+
+          scaleObs.push_back(imagePoints);
+          scaleCameras.push_back(camera);
+
           fids_.push_back(fid);
-          inliers_.push_back(inliers);
+          scaleInliers.push_back(inliers);
 
           //std::cout << inliers.type() << " " << inliers.t() << std::endl;
           for (int j = 0; j < inliers.rows; j++) {
             int i = inliers.row(j).at<int>(0, 0);
             ceres::CostFunction *cost_function = TriangulateError3::Create(imagePoints[i].x, imagePoints[i].y);
-            mainProblem.AddResidualBlock(cost_function, NULL, camera, objectPoints_[i]);
+            mainProblem.AddResidualBlock(cost_function, NULL, &scaleCameras.back()[0], objectPoints_ceres[i]);
           }
+        } else {
+          std::cout << "no inliers in solveRansac " << fid << "\n";
         }
       }
+
       ceres::Solver::Options mainOptions;
       mainOptions.minimizer_progress_to_stdout = true;
       mainOptions.linear_solver_type = ceres::DENSE_SCHUR;
       ceres::Solver::Summary mainSummary;
       ceres::Solve(mainOptions, &mainProblem, &mainSummary);
 
+      /*std::cout << "frames chosed: " << fids_.size() << std::endl;
       std::cout << "prev obj points: " << std::endl;
       for(auto p : objectPoints) {
         std::cout << p << std::endl;
-      }
+      }*/
 
-      std::cout << "actual obj points: " << std::endl;
+      //std::cout << "actual obj points: " << std::endl;
       objectPoints.clear();
-      for(auto i = 0; i < objectPoints_.size(); i++) {
-        cv::Point3d p = cv::Point3d(objectPoints_[i][0],objectPoints_[i][1],objectPoints_[i][2]);
-        std::cout << p << std::endl;
+      for(auto i = 0; i < objectPoints_ceres.size(); i++) {
+        cv::Point3d p = cv::Point3d(objectPoints_ceres[i][0],objectPoints_ceres[i][1],objectPoints_ceres[i][2]);
+        //std::cout << p << std::endl;
         objectPoints.push_back(p);
       }
+      //std::cout << std::endl;
 
-      std::cout << std::endl;
-      for(auto i = 0; i < cameras_.size(); i++) {
-        cv::Mat rvec = cv::Mat(3,1,CV_64F);
-        rvec.at<double>(0,0) = cameras_[i][0];
-        rvec.at<double>(1,0) = cameras_[i][1];
-        rvec.at<double>(2,0) = cameras_[i][2];
+      for(auto i = 0; i < scaleCameras.size(); i++) {
+        cv::Mat rvec = cv::Mat(3, 1, CV_64F);
+        rvec.at<double>(0, 0) = scaleCameras[i][0];
+        rvec.at<double>(1, 0) = scaleCameras[i][1];
+        rvec.at<double>(2, 0) = scaleCameras[i][2];
 
-        std::cout << oldrvec[i].t() << std::endl;
-        std::cout << rvec.t() << std::endl;
+        //std::cout << oldrvec[i].t() << std::endl;
+        //std::cout << rvec.t() << std::endl;
 
-        cv::Mat tvec = cv::Mat(3,1,CV_64F);
-        tvec.at<double>(0,0) = cameras_[i][3];
-        tvec.at<double>(1,0) = cameras_[i][4];
-        tvec.at<double>(2,0) = cameras_[i][5];
-        std::cout << oldtvec[i].t() << std::endl;
-        std::cout << tvec.t() << std::endl;
+        cv::Mat tvec = cv::Mat(3, 1, CV_64F);
+        tvec.at<double>(0, 0) = scaleCameras[i][3];
+        tvec.at<double>(1, 0) = scaleCameras[i][4];
+        tvec.at<double>(2, 0) = scaleCameras[i][5];
+        //tvec = tvec*2;
 
-        setObjectWorldCoordsOnFrame(rvec, tvec, fids_[i], inliers_[i]);
-        //setObjectWorldCoordsOnFrame(oldrvec[i], oldtvec[i], fids_[i], inliers_[i]);
+        //std::cout << oldtvec[i].t() << std::endl;
+        //std::cout << tvec.t() << std::endl;
+
+        std::vector<cv::Point3d> Xs;
+        std::vector<cv::Point2d> projXs;
+        if (i == 0) {
+          Fdebug_ = fids_[i];
+          std::cout << fids_[i] << std::endl;
+          setObjectWorldCoordsOnFrame(rvec, tvec, fids_[i], scaleInliers[i], scaleXsF, projXs);
+        }
+        else if (i == scaleCameras.size() - 1) {
+          Ldebug_ = fids_[i];
+          std::cout << fids_[i] << std::endl;
+          setObjectWorldCoordsOnFrame(rvec, tvec, fids_[i], scaleInliers[i], scaleXsL, projXsL_debug);
+        }
+        else
+          setObjectWorldCoordsOnFrame(rvec, tvec, fids_[i], scaleInliers[i], Xs, projXs);
       }
-    } else {
-      std::cerr << "five point failed\n";
+
+scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF , scaleXsL);
+
+}
+
+/*
+struct Cube{
+  cv::Point3d points[8];
+}*/
+
+//simple test. outlier test,
+void testProgram(){
+  return;
+}
+
+
+void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
+                                             std::vector<std::vector<double>> cameras,
+                                             std::vector<cv::Mat> inliers,
+                                             std::vector<cv::Point3d> XsF , std::vector<cv::Point3d> XsL) {
+
+  ceres::Problem scaleProblem;
+  ceres::Solver::Options scaleOptions;
+  ceres::Solver::Summary scaleSummary;
+
+  double s[1] = {1.0};
+  std::vector<double> rvec;
+  rvec.push_back(0);
+  rvec.push_back(0);
+  rvec.push_back(0);
+
+  std::vector<double> v;
+
+  cv::Point3d meanXF(0,0,0);
+  for(auto p : XsF)
+    meanXF += p;
+  meanXF /= (double)XsF.size();
+
+  cv::Point3d meanXL(0,0,0);
+  for(auto p : XsL)
+    meanXL += p;
+  meanXL /= (double)XsL.size();
+
+  std::cout << meanXF << std::endl;
+  std::cout << meanXL << std::endl;
+  std::cout << (double)obs.size() << " : " << (Fdebug_ - Ldebug_) << std::endl;
+  cv::Point3d V = (meanXL - meanXF) / (Fdebug_ - Ldebug_);
+  //std::cout << V << std::endl;
+
+  v.push_back(V.x);
+  v.push_back(V.y);
+  v.push_back(V.z);
+
+  /*std::cout << "pew1\n";
+  for(auto p : projXsL_debug)
+    std::cout << p << " ";
+  std::cout << std::endl;
+
+  std::cout << "pew2\n";
+  for(auto p : obs.back())
+    std::cout << p << " ";
+  std::cout << std::endl;*/
+
+  for(int k = 0; k < obs.size() - 1; k++) {
+    for(int j = 0; j < inliers[k].rows; j++) {
+      int pid = inliers[k].row(j).at<int>(0,0);
+      cv::Point2d const& obs_ = obs[k+1][pid];
+      cv::Point3d const& X_   = XsF[pid];
+      std::vector<double> const& camera_ = cameras[k+1];
+
+      ceres::CostFunction *cost_function = ScaleError::Create(obs_.x, obs_.y, X_.x, X_.y, X_.z, camera_.data(), k+1);
+      scaleProblem.AddResidualBlock(cost_function, NULL, s, /*&rvec[0],*/ v.data());
     }
   }
+
+  std::cout << "rvec: " << std::endl;
+  for(auto r : rvec)
+    std::cout << r << " ";
+  std::cout << std::endl;
+
+  std::cout << "v: " << std::endl;
+  for(auto v_ : v)
+    std::cout << v_ << " ";
+  std::cout << std::endl;
+
+  scaleOptions.minimizer_progress_to_stdout = true;
+  scaleOptions.linear_solver_type = ceres::DENSE_SCHUR;
+  ceres::Solve(scaleOptions, &scaleProblem, &scaleSummary);
+  std::cout << "scale Solver finished" << std::endl;
+
+  std::cout << "final rvec: " << std::endl;
+  for(auto r : rvec)
+    std::cout << r << " ";
+  std::cout << std::endl;
+
+  std::cout << "final v: " << std::endl;
+  for(auto v_ : v)
+    std::cout << v_ << " ";
+  std::cout << std::endl;
+
+  std::cout << "scale: " << s[0] << std::endl;
 }
