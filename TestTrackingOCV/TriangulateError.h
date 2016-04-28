@@ -75,7 +75,7 @@ struct TriangulateError2 {
     pF[1] += T(cF[4]);
     pF[2] += T(cF[5]);
 
-    T xpF = pF[0] / pF[2];
+    T xpF = pF[0] / pF[2]; //no minus because of recoverPose()?
     T ypF = pF[1] / pF[2];
 
     residuals[0] = T(xpF) - T(oxF);
@@ -181,10 +181,25 @@ struct ScaleError {
                   /*const T* const R,*/
                   const T* const v,
                         T* residuals) const {
-    T p[3], point[3];
-    point[0] = s[0]*X_x + k*v[0];
-    point[1] = s[0]*X_y + k*v[1];
-    point[2] = s[0]*X_z + k*v[2];
+    T p[3], p_[3], point[3], point_[3];
+
+    /*point_[0] = T(X_x);
+    point_[1] = T(X_y);
+    point_[2] = T(X_z);
+    ceres::AngleAxisRotatePoint(R, point_, p_);*/
+#if 1
+    /*point[0] = T(s[0])*p_[0] + T(k)*T(v[0]);
+    point[1] = T(s[0])*p_[1] + T(k)*T(v[1]);
+    point[2] = T(s[0])*p_[2] + T(k)*T(v[2]);*/
+
+    point[0] = T(s[0])*T(X_x) + T(k)*T(v[0]);
+    point[1] = T(s[0])*T(X_y) + T(k)*T(v[1]);
+    point[2] = T(s[0])*T(X_z) + T(k)*T(v[2]);
+#else
+    point[0] = T(X_x) + T(k)*T(v[0]);
+    point[1] = T(X_y) + T(k)*T(v[1]);
+    point[2] = T(X_z) + T(k)*T(v[2]);
+#endif
 
 
     //very important part!
@@ -218,12 +233,12 @@ struct ScaleError {
                                      const double X_z,
                                      const double *camera,
                                      const double k) {
-    return (new ceres::AutoDiffCostFunction<ScaleError, 2, 1, /*3, */3>(
+    return (new ceres::AutoDiffCostFunction<ScaleError, 2, 1, /*3,*/ 3>(
         new ScaleError(obs_x, obs_y, X_x, X_y, X_z, camera, k)));
   }
 
   const double k;
-  const double obs_x, obs_y;    //2
-  const double X_x, X_y, X_z;      //3
-  const double *camera; //3
+  const double obs_x, obs_y;  //2
+  const double X_x, X_y, X_z; //3
+  const double *camera;       //3
 };

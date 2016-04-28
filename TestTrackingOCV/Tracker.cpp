@@ -420,11 +420,6 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
 }
 
 
-void get5Min(std::vector<cv::Point2d>& metaPoints, std::vector<cv::Point3d>& pnpPoints,
-             cv::Point2d & metaCandidate, cv::Point3d & pnpCandidate)
-{}
-
-
 void Tracker::drawFinalPointsTypes(int frameId, cv::Mat const& img, cv::Mat &outImg)
 {
   cv::cvtColor(img, outImg, CV_GRAY2BGR);

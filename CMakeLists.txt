@@ -31,7 +31,7 @@ set(SOURCE_FILES
   TestTrackingOCV/Tracker.h
   TestTrackingOCV/TrajectoryArchiver.cpp
   TestTrackingOCV/TrajectoryArchiver.h
-  TestTrackingOCV/TriangulateError.h)
+  TestTrackingOCV/TriangulateError.h TestTrackingOCV/TestProgram.cpp TestTrackingOCV/TestProgram.h)
 
 add_executable(TestTrackingOCV ${SOURCE_FILES})
 

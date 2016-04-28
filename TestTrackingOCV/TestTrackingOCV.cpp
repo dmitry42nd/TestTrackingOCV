@@ -9,6 +9,7 @@
 #include "CameraPoseProviderTXT.h"
 #include "TrajectoryArchiver.h"
 #include "DynamicTrajectoryEstimator.h"
+#include "TestProgram.h"
 
 #define ID_SHIFT 601
 
@@ -58,19 +59,10 @@ void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, 
 
 int main()
 {
-#if 0
-  int size = 13;
-  int sample_size = 2;
-  int step = 13 / 2;
+#if 1
+  TestProgram t;
 
-  int i;
-  for(i = 3; i < size; i+=step)
-  {
-    std::cerr << i << std::endl;
-
-  }
-  //last frame must have?
-  if(i != size-1) std::cerr << size-1 << std::endl;
+  t.rigid_body_kin();
 #else
   cv::FileStorage fs("settings.yaml", cv::FileStorage::READ);
 
@@ -184,8 +176,6 @@ int main()
 
 
 #endif
-
-  std::cerr << "Done" << std::endl;
 
   return 0;
 }

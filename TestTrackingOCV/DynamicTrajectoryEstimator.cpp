@@ -189,7 +189,7 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
     cv::Mat a = cv::Mat(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
     cv::Mat b = cv::Mat(cv::Point2d(imagePoints[i].x, imagePoints[i].y));
     double projErr = cv::norm(a-b);
-    //std::cout << projErr << std::endl;
+    std::cout << projErr << std::endl;
     errOut << projErr << std::endl;
     err.push_back(projErr);
   }
@@ -402,7 +402,6 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
         cv::Mat outImg;
         img.copyTo(outImg);*/
 
-
         imagePoints.clear();
         for(auto o : hists_) {
           auto p = std::find_if(o.cbegin(), o.cend(),
@@ -429,13 +428,10 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
           oldtvec.push_back(tvec);
 
           std::vector<double> camera;
-          //double * camera = new double[6];
           for (auto i = 0; i < 3; i++) {
-            //camera[i] = rvec.at<double>(i, 0);
             camera.push_back(rvec.at<double>(i, 0));
           }
           for (auto i = 0; i < 3; i++) {
-            //camera[3 + i] = rvec.at<double>(i, 0);
             camera.push_back(tvec.at<double>(i, 0));
           }
 
@@ -448,7 +444,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
           //std::cout << inliers.type() << " " << inliers.t() << std::endl;
           for (int j = 0; j < inliers.rows; j++) {
             int i = inliers.row(j).at<int>(0, 0);
-            ceres::CostFunction *cost_function = TriangulateError3::Create(imagePoints[i].x, imagePoints[i].y);
+            ceres::CostFunction *cost_function = TriangulateError3::Create(scaleObs.back()[i].x, scaleObs.back()[i].y);
             mainProblem.AddResidualBlock(cost_function, NULL, &scaleCameras.back()[0], objectPoints_ceres[i]);
           }
         } else {
@@ -511,54 +507,53 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
           setObjectWorldCoordsOnFrame(rvec, tvec, fids_[i], scaleInliers[i], Xs, projXs);
       }
 
-scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF , scaleXsL);
+
+  cv::Point3d meanXF(0,0,0);
+  for(auto p : scaleXsF)
+    meanXF += p;
+  meanXF /= (double)scaleXsF.size();
+
+  cv::Point3d meanXL(0,0,0);
+  for(auto p : scaleXsL)
+    meanXL += p;
+  meanXL /= (double)scaleXsL.size();
+
+  std::cout << meanXF << std::endl;
+  std::cout << meanXL << std::endl;
+  //std::cout << (double)obs.size() << " : " << (Ldebug_ - Fdebug_) << std::endl;
+  cv::Point3d Vest = (meanXL - meanXF) / (double)scaleObs.size();  //(Ldebug_ - Fdebug_);
+  //std::cout << V << std::endl;
+
+  scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF, Vest);
 
 }
 
-/*
-struct Cube{
-  cv::Point3d points[8];
-}*/
-
 //simple test. outlier test,
-void testProgram(){
+void testProgram() {
+
   return;
 }
 
-
-void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
+#if 0
+static void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
                                              std::vector<std::vector<double>> cameras,
                                              std::vector<cv::Mat> inliers,
-                                             std::vector<cv::Point3d> XsF , std::vector<cv::Point3d> XsL) {
+                                             std::vector<cv::Point3d> XsF,
+                                             cv::Point3d V) {
 
   ceres::Problem scaleProblem;
   ceres::Solver::Options scaleOptions;
   ceres::Solver::Summary scaleSummary;
 
-  double s[1] = {1.0};
-  std::vector<double> rvec;
+  std::vector<double> s;
+  s.push_back(1.0);
+
+  /*std::vector<double> rvec;
   rvec.push_back(0);
   rvec.push_back(0);
-  rvec.push_back(0);
+  rvec.push_back(0);*/
 
   std::vector<double> v;
-
-  cv::Point3d meanXF(0,0,0);
-  for(auto p : XsF)
-    meanXF += p;
-  meanXF /= (double)XsF.size();
-
-  cv::Point3d meanXL(0,0,0);
-  for(auto p : XsL)
-    meanXL += p;
-  meanXL /= (double)XsL.size();
-
-  std::cout << meanXF << std::endl;
-  std::cout << meanXL << std::endl;
-  std::cout << (double)obs.size() << " : " << (Fdebug_ - Ldebug_) << std::endl;
-  cv::Point3d V = (meanXL - meanXF) / (Fdebug_ - Ldebug_);
-  //std::cout << V << std::endl;
-
   v.push_back(V.x);
   v.push_back(V.y);
   v.push_back(V.z);
@@ -573,22 +568,22 @@ void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d
     std::cout << p << " ";
   std::cout << std::endl;*/
 
-  for(int k = 0; k < obs.size() - 1; k++) {
+  for(int k = 0; k < obs.size(); k++) {
     for(int j = 0; j < inliers[k].rows; j++) {
       int pid = inliers[k].row(j).at<int>(0,0);
-      cv::Point2d const& obs_ = obs[k+1][pid];
+      cv::Point2d const& obs_ = obs[k][pid];
       cv::Point3d const& X_   = XsF[pid];
-      std::vector<double> const& camera_ = cameras[k+1];
+      std::vector<double> const& camera_ = cameras[k];
 
-      ceres::CostFunction *cost_function = ScaleError::Create(obs_.x, obs_.y, X_.x, X_.y, X_.z, camera_.data(), k+1);
-      scaleProblem.AddResidualBlock(cost_function, NULL, s, /*&rvec[0],*/ v.data());
+      ceres::CostFunction *cost_function = ScaleError::Create(obs_.x, obs_.y, X_.x, X_.y, X_.z, camera_.data(), k);
+      scaleProblem.AddResidualBlock(cost_function, NULL, s.data(), /*&rvec[0],*/ v.data());
     }
   }
 
-  std::cout << "rvec: " << std::endl;
+  /*std::cout << "rvec: " << std::endl;
   for(auto r : rvec)
     std::cout << r << " ";
-  std::cout << std::endl;
+  std::cout << std::endl;*/
 
   std::cout << "v: " << std::endl;
   for(auto v_ : v)
@@ -600,10 +595,10 @@ void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d
   ceres::Solve(scaleOptions, &scaleProblem, &scaleSummary);
   std::cout << "scale Solver finished" << std::endl;
 
-  std::cout << "final rvec: " << std::endl;
+  /*std::cout << "final rvec: " << std::endl;
   for(auto r : rvec)
     std::cout << r << " ";
-  std::cout << std::endl;
+  std::cout << std::endl;*/
 
   std::cout << "final v: " << std::endl;
   for(auto v_ : v)
@@ -612,3 +607,69 @@ void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d
 
   std::cout << "scale: " << s[0] << std::endl;
 }
+
+#else
+
+static void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
+                                                    std::vector<std::vector<double>> cameras,
+                                                    std::vector<cv::Mat> inliers,
+                                                    std::vector<cv::Point3d> XsF,
+                                                    cv::Point3d V) {
+
+  ceres::Problem scaleProblem;
+  ceres::Solver::Options scaleOptions;
+  ceres::Solver::Summary scaleSummary;
+
+  std::vector<double> s;
+  s.push_back(1);
+
+  /*std::vector<double> rvec;
+  rvec.push_back(0.001);
+  rvec.push_back(0.004);
+  rvec.push_back(0.002);*/
+
+  std::vector<double> v;
+  v.push_back(V.x);
+  v.push_back(V.y);
+  v.push_back(V.z);
+
+  for(int k = 0; k < obs.size(); k++) {
+    for(int j = 0; j < XsF.size(); j++) {
+      cv::Point2d const& obs_ = obs[k][j];
+      cv::Point3d const& X_   = XsF[j];
+      std::vector<double> const& camera_ = cameras[k];
+
+      ceres::CostFunction *cost_function = ScaleError::Create(obs_.x, obs_.y, X_.x, X_.y, X_.z, camera_.data(), k+1);
+      scaleProblem.AddResidualBlock(cost_function, NULL, s.data(), /*rvec.data(),*/ v.data());
+    }
+  }
+
+  /*std::cout << "rvec: " << std::endl;
+  for(auto r : rvec)
+    std::cout << r << " ";
+  std::cout << std::endl;*/
+
+  std::cout << "v: " << std::endl;
+  for(auto v_ : v)
+    std::cout << v_ << " ";
+  std::cout << std::endl;
+  std::cout << "scale: " << s[0] << std::endl;
+
+  scaleOptions.minimizer_progress_to_stdout = true;
+  scaleOptions.linear_solver_type = ceres::DENSE_SCHUR;
+  ceres::Solve(scaleOptions, &scaleProblem, &scaleSummary);
+  std::cout << "scale Solver finished" << std::endl;
+
+  /*std::cout << "final rvec: " << std::endl;
+  for(auto r : rvec)
+    std::cout << r << " ";
+  std::cout << std::endl;*/
+
+  std::cout << "final v: " << std::endl;
+  for(auto v_ : v)
+    std::cout << v_ << " ";
+  std::cout << std::endl;
+  std::cout << "final scale: " << s[0] << std::endl;
+}
+
+#endif

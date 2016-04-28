@@ -27,6 +27,13 @@ public:
   void finilizeTrack(Track& t);
   void registerTrack(Track& t);
 
+  static void scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
+                   std::vector<std::vector<double>> cameras,
+                   std::vector<cv::Mat> inliers,
+                   std::vector<cv::Point3d> scaleXsF,
+                   cv::Point3d Vest);
+
+
 protected:
 
   std::vector<std::shared_ptr<Track>> dynamicTracks;
@@ -53,11 +60,6 @@ protected:
   void filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
                          std::vector<cv::Point2d> &v, histVector &its, int i);
   void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);
-
-  void scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
-       std::vector<std::vector<double>> cameras,
-       std::vector<cv::Mat> inliers,
-       std::vector<cv::Point3d> XsF , std::vector<cv::Point3d> XsL);
 
   //std::vector<cv::Point2d> unPointsF, unPointsL;
 
