@@ -53,7 +53,6 @@ protected:
   std::ofstream dataOut;
   std::ofstream errOut;
   cv::Mat img;
-  cv::Mat inliers;
   std::vector<cv::Mat> oldrvec;
   std::vector<cv::Mat> oldtvec;
   histVector hists_;

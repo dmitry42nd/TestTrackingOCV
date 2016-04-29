@@ -206,8 +206,8 @@ void Tracker::getProjectionAndNormCeres(double *camera, double *point, cv::Point
   p[0] += camera[3];
   p[1] += camera[4];
   p[2] += camera[5];
-  xp = -p[0] / p[2];
-  yp = -p[1] / p[2];
+  xp = p[0] / p[2];
+  yp = p[1] / p[2];
 
   np = cv::Point3f(xp, yp, 1);
   std::vector<cv::Point3f> vnp;
@@ -314,7 +314,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
     double c = cv::norm(cv::Mat(npL - npF));
     double median = pow(2 * pow(a, 2) + 2 * pow(b, 2) - pow(c, 2), 0.5) / 2;
 
-    if(20*c > median)
+    if(30*c > median)
     {
       double pointErr1 = cv::norm(cv::Mat(ppF - oPoints.front()->loc));
       double pointErr2 = cv::norm(cv::Mat(ppM - track->history[pIdM]->loc));

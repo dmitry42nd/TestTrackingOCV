@@ -13,7 +13,7 @@ public:
 
 protected:
   static const int N = 8;
-  static const int TimeSpan = 100;
+  static const int TimeSpan = 20;
 
   std::array<cv::Vec3d, N> pts;
   std::array<cv::Vec3d, N> cur_pts;

@@ -16,7 +16,7 @@ void makeCamera(std::vector<double> & camera, cv::Vec3d t) {
   camera.push_back(-t[2]);
 }
 
-static const double sc_coef = 0.3;
+static const double sc_coef = 0.2;
 void TestProgram::rigid_body_kin() {
   srand((unsigned)time(NULL));
 
@@ -35,7 +35,7 @@ void TestProgram::rigid_body_kin() {
   for(auto & p : pts)
     p = cv::Vec3d(cv::Mat(R_object_ini*cv::Mat(p))) + cv::Vec3d(1.0, 0.0, 4.0); //"rand" translation
 
-  //double data_rv[3] = {0.001, 0.004, 0.002};
+  //double data_rv[3] = {0.002, 0.00, 0.001};
   double data_rv[3] = {0., 0., 0.};
   cv::Mat rv = cv::Mat(1, 3, CV_64F, data_rv);
   cv::Rodrigues(rv, Rv);
@@ -73,11 +73,10 @@ void TestProgram::rigid_body_kin() {
     for(auto j = 0; j < N; ++j) {
       //std::cout << cv::Vec3d(cv::Mat(Rv*cv::Mat(cur_pts[j]))) << " " << v_object_curr << std::endl;
       cur_pts[j]     = cv::Vec3d(cv::Mat(Rv*cv::Mat(cur_pts[j]))) + v_object_curr;
-
       cur_pts_cam[j] = cur_pts[j] - campos;
 
-      double n0=((double)rand()/(double)RAND_MAX)*0.00;
-      double n1=((double)rand()/(double)RAND_MAX)*0.0;
+      double n0=((double)rand()/(double)RAND_MAX)*0.001 ;
+      double n1=((double)rand()/(double)RAND_MAX)*0.001;
       cv::Vec3d tmp = cur_pts_cam[j]/cur_pts_cam[j][2] /* + 0.001*randn(2,1)*/;
       cv::Vec2d proj = cv::Vec2d(tmp[0]+n0, tmp[1]+n1);
       pt_projs[j].push_back(proj);

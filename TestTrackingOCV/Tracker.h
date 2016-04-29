@@ -38,8 +38,8 @@ protected:
 	cv::Size imgSize;
 
 	const int kltPointsMin   = 200;
-	const double optFlowThr  = 60;
-	const double backProjThr = 80;
+	const double optFlowThr  = 30;
+	const double backProjThr = 30;
   const int wx = 2;
 	const int wy = 2;
 
