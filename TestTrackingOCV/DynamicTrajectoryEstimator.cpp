@@ -78,8 +78,8 @@ double getProjErrCeres(double *camera, double *point, cv::Point2d p2d)
   p[0] += camera[3];
   p[1] += camera[4];
   p[2] += camera[5];
-  xp = -p[0] / p[2];
-  yp = -p[1] / p[2];
+  xp = p[0] / p[2];
+  yp = p[1] / p[2];
 
   cv::Point2d p_ = cv::Point2d(xp, yp);
   //std::cout << xp - p2d.x << " " << yp - p2d.y << std::endl;
@@ -93,8 +93,8 @@ void DynamicTrajectoryEstimator::getProjectionAndNormCeres(double *camera, doubl
   p[0] += camera[3];
   p[1] += camera[4];
   p[2] += camera[5];
-  xp = -p[0] / p[2];
-  yp = -p[1] / p[2];
+  xp = p[0] / p[2];
+  yp = p[1] / p[2];
 
   np = cv::Point3f(xp, yp, 1);
   std::vector<cv::Point3f> vnp;
@@ -114,7 +114,7 @@ cv::Point3f getPoint3d(cv::Mat const& p4D)
 
 cv::Point3d getPoint3dCeres(double *p3D)
 {
-  return cv::Point3d(p3D[0], p3D[1], -p3D[2]);
+  return cv::Point3d(p3D[0], p3D[1], p3D[2]);
 }
 
 
@@ -168,9 +168,9 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
 
     //reprojection error
     cv::Mat cp = ocT*point;
-    projXs_debug.push_back(cv::Point2d(-cp.at<double>(0,0)/cp.at<double>(0,2), -cp.at<double>(0,1)/cp.at<double>(0,2)));
+    projXs_debug.push_back(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
     //std::cout << cp << std::endl;
-    cv::Mat a = cv::Mat(cv::Point2d(-cp.at<double>(0,0)/cp.at<double>(0,2), -cp.at<double>(0,1)/cp.at<double>(0,2)));
+    cv::Mat a = cv::Mat(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
     cv::Mat b = cv::Mat(cv::Point2d(imagePoints[i].x, imagePoints[i].y));
     double projErr = cv::norm(a-b);
     std::cout << projErr << std::endl;
@@ -285,7 +285,7 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
   //std::cout << "got " << unPointsF.size() << " points for frame pair " << frameId << " - " << frameId + SOME_STEP << std::endl;
   if (hists.size() >= MIN_POINTS) {
     cv::Mat mask;
-    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.99, 0.001, mask);
+    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.99, 0.0005, mask);
     //std::cerr << E << std::endl;
 
     cv::Mat R, t, R1, R2;
@@ -351,7 +351,7 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
         double reprojErr1 = getProjErrCeres(cameraF, points[i], unPointsF[i]);
         double reprojErr2 = getProjErrCeres(cameraL, points[i], unPointsL[i]);
         double mean2Err = (reprojErr1 + reprojErr2) / 2;
-        std::cout << mean2Err << std::endl;
+        //std::cout << mean2Err << std::endl;
         projErrs.push_back(std::make_pair(mean2Err , i));
       }
 
@@ -361,20 +361,20 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
       }*/
 
       //http://stackoverflow.com/questions/19842035/stdmap-how-to-sort-by-value-then-by-key
-      //std::sort(projErrs.begin(), projErrs.end());
+      std::sort(projErrs.begin(), projErrs.end());
 
       objectPoints.clear();
       //std::cout << projErrs.size() << std::endl;
-      for(auto i = 0; i < points.size(); i++) {
-        //int pId = projErrs[i].second;
-        int pId = i;
+      for(auto i = 0; i < MIN_POINTS/*points.size()*/; i++) {
+        int pId = projErrs[i].second;
+        //int pId = i;
         hists_.push_back(hists[pId]);
         objectPoints.push_back(getPoint3dCeres(points[pId]));
 
         double *objP = new double[3];
         objP[0] = points[pId][0];
         objP[1] = points[pId][1];
-        objP[2] = -points[pId][2];
+        objP[2] = points[pId][2];
         objectPoints_ceres.push_back(objP);
       }
 
@@ -419,7 +419,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
     cv::Mat rvec, tvec, inliers;
     if(imagePoints.size() >= 4)
       cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F),
-                         rvec, tvec, false, 200, 0.05, 0.98, inliers, cv::SOLVEPNP_DLS);
+                         rvec, tvec, false, 100, 0.001, 0.99, inliers, cv::SOLVEPNP_DLS);
       //cv::solvePnP(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec, false, cv::SOLVEPNP_EPNP);
 
 

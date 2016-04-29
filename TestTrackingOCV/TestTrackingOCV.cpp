@@ -90,7 +90,7 @@ int main()
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
 
-#if 1
+#if 0
   cv::Size imgSize = cv::imread(rgbImgsPaths.front().string()).size();
 
   TrajectoryArchiver trajArchiver(pathToSavedTracks);
@@ -143,7 +143,7 @@ int main()
   }
 #endif
 
-#if 0
+#if 1
   std::cerr << "build dynamic tracks\n";
 
   std::vector<ImgPath> fImgsPaths;
@@ -153,10 +153,10 @@ int main()
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
   //DTE.buildTrack(620, 639);
-  DTE.buildTrack(660, 711);
+  //DTE.buildTrack(660, 711);
   //DTE.buildTrack(725, 765);
   //DTE.buildTrack(788, 802);
-  //DTE.buildTrack(863, 895);
+  DTE.buildTrack(863, 895);
 
   /*for (int imgId = 0; ID_SHIFT + imgId < 654; imgId++)
   {

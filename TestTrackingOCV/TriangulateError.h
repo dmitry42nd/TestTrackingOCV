@@ -116,8 +116,8 @@ struct TriangulateError3 {
     p[1] += T(camera[4]);
     p[2] += T(camera[5]);
 
-    T xpF = -p[0] / p[2];
-    T ypF = -p[1] / p[2];
+    T xpF = p[0] / p[2];
+    T ypF = p[1] / p[2];
 
     residuals[0] = T(xpF) - T(ox);
     residuals[1] = T(ypF) - T(oy);
