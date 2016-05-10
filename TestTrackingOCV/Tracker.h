@@ -44,7 +44,10 @@ protected:
   const int wx = 2;
 	const int wy = 2;
 
-	std::vector<std::pair<double,bool>> errs_v;
+	std::vector<std::pair<double,bool>> errs_mean2;
+	std::vector<std::pair<double,bool>> errs_mean3;
+	std::vector<std::pair<double,bool>> errs_max;
+
 	cv::Ptr<cv::FastFeatureDetector> fastDetector;
 	cv::Mat const& K;
 	cv::Mat const& dist;

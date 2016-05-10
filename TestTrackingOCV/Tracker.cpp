@@ -347,6 +347,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
   }
 }
 
+char imgn[100];
 void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame, cv::Mat& depthImg) {
 
   if (ifTracksEnd(frameId)) {
@@ -366,6 +367,10 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
     curTracks.clear();
     cv::cvtColor(img, outputFrame, CV_GRAY2BGR);
     if (prevTracks.size() > 0) {
+
+      sprintf(imgn, "../../dynmasks/%06d.png", frameId);
+      cv::Mat mask = cv::imread(imgn, CV_8U);
+
       std::vector<cv::Point2f> prevCorners;
       //TODO: optimize loc extraction
       for (auto &p : prevTracks)
@@ -406,6 +411,15 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
             defineTrackType(prevTracks[i]);
             lostTracks.push_back(prevTracks[i]);
             trajArchiver.archiveTrajectorySimple(prevTracks[i]);
+
+            //roc stuff
+            if(!mask.empty()) {
+              bool dyn = mask.at<uchar>(trunc(prevTracks[i]->history.back()->loc.y),
+                                        trunc(prevTracks[i]->history.back()->loc.x));
+              errs_mean2.push_back(std::pair<double, bool>(prevTracks[i]->err[0], dyn));
+              errs_max.push_back(std::pair<double, bool>(prevTracks[i]->err[1], dyn));
+              errs_mean3.push_back(std::pair<double, bool>(prevTracks[i]->err[2], dyn));
+            }
           }
         }
       }
@@ -422,6 +436,38 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
 
     prevTracks = curTracks;
     prevImg = img;
+  }
+}
+
+
+void Tracker::generateRocData(std::ofstream &file, int maxThrErr)
+{
+  for (auto errThr = 0; errThr < maxThrErr; errThr += 5) {
+    int TP = 0;
+    int TN = 0;
+    int FP = 0;
+    int FN = 0;
+
+    for (std::pair<double, bool> er : errs_mean3) {
+      if (er.first > errThr) { // detect as dynamic
+        if (er.second) {
+          TN++;
+        } else {
+          FN++;
+        }
+      }
+      else {
+        if (er.second) {
+          FP++;
+        } else {
+          TP++;
+        }
+      }
+    }
+
+    float TPR = TP / (float)(TP + FN);
+    float FPR = FP / (float)(TN + FP);
+    file << FPR << ", " << TPR  << std::endl;
   }
 }
 
