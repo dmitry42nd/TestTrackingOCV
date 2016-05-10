@@ -11,7 +11,7 @@
 #include "DynamicTrajectoryEstimator.h"
 #include "TestProgram.h"
 
-#define ID_SHIFT 601
+#define ID_SHIFT 57
 
 typedef boost::filesystem::path ImgPath;
 
@@ -27,7 +27,7 @@ void extractNumbers(std::string fOnly, int &prefInt, int& sufInt)
 }
 
 
-void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, ImgPath const &rgbImgPath)
+void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, ImgPath const &rgbImgPath, int imgId)
 {
   std::string fName = rgbImgPath.filename().string();
   int prefInt, sufInt;
@@ -53,6 +53,8 @@ void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, 
         }
       }
       depthImg = cv::imread(depthImgsPaths[minInd].string(), CV_LOAD_IMAGE_ANYDEPTH);
+    } else {
+      depthImg = cv::imread(depthImgsPaths[imgId].string(), CV_LOAD_IMAGE_ANYDEPTH);
     }
   }
 }
@@ -90,7 +92,7 @@ int main()
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
 
-#if 0
+#if 1
   cv::Size imgSize = cv::imread(rgbImgsPaths.front().string()).size();
 
   TrajectoryArchiver trajArchiver(pathToSavedTracks);
@@ -101,7 +103,7 @@ int main()
   for (decltype(rgbImgsPaths.size())  imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
   {
     cv::Mat depthImg = cv::Mat::zeros(imgSize, CV_16S);
-    getDepthImg(depthImg, depthImgsPaths, rgbImgsPaths[imgId]);
+    getDepthImg(depthImg, depthImgsPaths, rgbImgsPaths[imgId], imgId);
 
     std::string rgbImgName = rgbImgsPaths[imgId].string();
     if (boost::filesystem::exists(rgbImgName))
@@ -143,7 +145,7 @@ int main()
   }
 #endif
 
-#if 1
+#if 0
   std::cerr << "build dynamic tracks\n";
 
   std::vector<ImgPath> fImgsPaths;
@@ -152,11 +154,15 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
-  //DTE.buildTrack(620, 639);
-  //DTE.buildTrack(660, 711);
+  DTE.buildTrack(282, 340);
+  //DTE.buildTrack(355, 428);
+  //DTE.buildTrack(435, 498);
+  //kinect601
+  //DTE.buildTrack(605, 639);
+  //DTE.buildTrack(660, 702);
   //DTE.buildTrack(725, 765);
-  //DTE.buildTrack(788, 802);
-  DTE.buildTrack(863, 895);
+  //DTE.buildTrack(788, 826);
+  //DTE.buildTrack(863, 895);
 
   /*for (int imgId = 0; ID_SHIFT + imgId < 654; imgId++)
   {

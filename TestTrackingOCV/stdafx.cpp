@@ -6,7 +6,10 @@
 
 bool ifTracksEnd(int frameId)
 {
-  const int ends[5] = {653, 720, 782, 857, 917};
+  //  kinect 601
+  //const int ends[5] = {653, 720, 782, 857, 917};
+  //const int ends[5] = {347, 429, 499}; //uno
+  const int ends[5] = {93};
   for(auto i : ends)
   {
     if(frameId == i) {

@@ -12,6 +12,7 @@ public:
   Track();
 
   PointType type;
+  int defineTypeFrameId;
   std::vector<std::shared_ptr<TrackedPoint>> history;
   double err[3];
 

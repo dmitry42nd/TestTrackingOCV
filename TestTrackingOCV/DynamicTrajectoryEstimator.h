@@ -35,7 +35,8 @@ public:
 
 
 protected:
-
+  const double essThr = 0.05;
+  const double pnpThr = 0.05;
   std::vector<std::shared_ptr<Track>> dynamicTracks;
   std::vector<cv::Point3d> objectPoints;
   std::vector<double *> objectPoints_ceres;
@@ -44,13 +45,13 @@ protected:
   std::vector<std::vector<std::shared_ptr<TrackedPoint>>::iterator> its;*/
 
   std::vector<cv::Mat> owTs;
-  std::vector<std::vector<cv::Mat>> oXs;
 
   CameraPoseProvider & poseProvider;
   cv::Mat const& K;
   cv::Mat const& dist;
 
   std::ofstream dataOut;
+  std::ofstream dataOut_gt;
   std::ofstream errOut;
   cv::Mat img;
   std::vector<cv::Mat> oldrvec;
@@ -65,6 +66,8 @@ protected:
   //void setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers, std::vector<cv::Point3d> &Xs);
   void setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers,std::vector<cv::Point3d> &Xs,std::vector<cv::Point2d> &projXs_debug);
   void block1(int frameIdF, int frameIdL);
+
+  void reset();
 
   std::vector<std::vector<cv::Point2d>> scaleObs;
   std::vector<std::vector<double>> scaleCameras;

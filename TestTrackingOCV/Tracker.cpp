@@ -169,7 +169,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat const& img, cv::Mat& dept
     {
       cv::Point2i pt;
       roundCoords(pt, keyPtsFiltered[i].pt, imgSize);
-      double depth = (int)(depthImg.at<ushort>(pt) / 5000.0);
+      double depth = (double)(depthImg.at<ushort>(pt) / 5000.0);
       createNewTrack(keyPtsFiltered[i].pt, frameId, keyPtsFiltered[i], cv::Mat(), depth);
       cv::circle(outImg, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
     }
@@ -224,7 +224,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
 
   if (track->history.size() > 10) {
     #define SAMPLE_SIZE 5
-    #define FIRST_FRAME 5
+    #define FIRST_FRAME 3
     ceres::Problem problem;
 
     std::vector<double *> cameras;
@@ -232,26 +232,27 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
     std::vector<cv::Point2d> unPoints;
     auto trackSize = track->history.size();
     int  sample_size = SAMPLE_SIZE;
-    int  step = static_cast<int>(std::ceil(trackSize / sample_size));
+    int  step = static_cast<int>(std::ceil((trackSize - FIRST_FRAME)/ sample_size));
 
     decltype(trackSize) pId;
-    for(pId = FIRST_FRAME; pId < trackSize; pId+=step) {
-      for (; pId < pId + step; pId++) {
-        auto pFrameId = track->history[pId]->frameId;
-        CameraPose cp;
-        if (!poseProvider.getCameraPoseForFrame(cp, pFrameId)) {
-          oPoints.push_back(track->history[pId]);
+    for(pId = FIRST_FRAME; pId < trackSize; pId += step) {
+      int tpid = pId + step;
+        for (; pId < tpid; pId++) {
+          auto pFrameId = track->history[pId]->frameId;
+          CameraPose cp;
+          if (!poseProvider.getCameraPoseForFrame(cp, pFrameId)) {
+            oPoints.push_back(track->history[pId]);
 
-          double *camera = new double[6];
-          makeCeresCamera(camera, cp);
-          cameras.push_back(camera);
+            double *camera = new double[6];
+            makeCeresCamera(camera, cp);
+            cameras.push_back(camera);
 
-          unPoints.push_back(oPoints.back()->undist(K, dist));
-          ceres::CostFunction* cost_function = TriangulateError::Create(unPoints.back().x, unPoints.back().y, camera);
-          problem.AddResidualBlock(cost_function, NULL, point);
-          break;
+            unPoints.push_back(oPoints.back()->undist(K, dist));
+            ceres::CostFunction *cost_function = TriangulateError::Create(unPoints.back().x, unPoints.back().y, camera);
+            problem.AddResidualBlock(cost_function, NULL, point);
+            break;
+          }
         }
-      }
     }
 
     //last frame must have
@@ -322,7 +323,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
       //std::cerr << "norms: " << pointErr1 << " " << pointErr2 << std::endl;
 
       double mean2Error = (pointErr1 + pointErr2) / 2;
-      double maxError = std::max(pointErr1, pointErr2);
+      double maxError = std::max(std::max(pointErr1, pointErr2), pointErr3);
       double mean3Error = (pointErr1 + pointErr2 + pointErr3) / 3;
 
       if (mean3Error < backProjThr) {
@@ -335,6 +336,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
       track->err[0] = mean2Error;
       track->err[1] = maxError;
       track->err[2] = mean3Error;
+      track->defineTypeFrameId = track->history.back()->frameId;
     }
 
     delete[] point;
@@ -380,23 +382,27 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
       for (size_t i = 0; i < prevTracks.size(); i++) {
         cv::Mat err = cv::Mat(nextCorners[i] - prevCorners[i]);
         double trackDist = norm(err);
-        if (trackDist < optFlowThr && status[i] && err_[i] < 0.2 &&
+        if (trackDist < optFlowThr && status[i] && err_[i] < KLTErrThr &&
             nextCorners[i].x >= 0 && nextCorners[i].x < img.cols &&
             nextCorners[i].y >= 0 && nextCorners[i].y < img.rows) {
           cv::Point2i pt;
           roundCoords(pt, nextCorners[i], imgSize);
-          double depth = (int) (depthImg.at<ushort>(pt) / 5000);
+          double depth = (double) (depthImg.at<ushort>(pt)/5000.0);
           prevTracks[i]->history.push_back(std::make_shared<TrackedPoint>(nextCorners[i], frameId, depth));
 
           cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
           cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
           cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
 
+          /*if (prevTracks[i]->history.size() > 10 && (prevTracks[i]->type == Undef || frameId - prevTracks[i]->defineTypeFrameId > 10))
+            defineTrackType(prevTracks[i]);*/
+
           curTracks.push_back(prevTracks[i]);
         }
         else
         {
           if (prevTracks[i]->history.size() > 10) {
+            //if (prevTracks[i]->type == Undef)
             defineTrackType(prevTracks[i]);
             lostTracks.push_back(prevTracks[i]);
             trajArchiver.archiveTrajectorySimple(prevTracks[i]);

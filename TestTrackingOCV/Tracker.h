@@ -39,7 +39,8 @@ protected:
 
 	const int kltPointsMin   = 200;
 	const double optFlowThr  = 30;
-	const double backProjThr = 30;
+	const double backProjThr = 25;
+	const double KLTErrThr	 = 0.2;
   const int wx = 2;
 	const int wy = 2;
 
