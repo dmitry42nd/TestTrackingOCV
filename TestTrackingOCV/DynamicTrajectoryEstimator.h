@@ -20,6 +20,8 @@ class DynamicTrajectoryEstimator
 public:
   DynamicTrajectoryEstimator(CameraPoseProvider& poseProvider);
 
+  double getScale(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers);
+
   void buildTrack(int frameIdF, int frameIdL);
   void loadOnlyDynamicsTracksFromFile(std::string &pathToAllTracks);
 
@@ -35,8 +37,9 @@ public:
 
 
 protected:
-  const double essThr = 0.05;
-  const double pnpThr = 0.05;
+  double scale_;
+  const double essThr = 0.005;
+  const double pnpThr = 0.02;
   std::vector<std::shared_ptr<Track>> dynamicTracks;
   std::vector<cv::Point3d> objectPoints;
   std::vector<double *> objectPoints_ceres;

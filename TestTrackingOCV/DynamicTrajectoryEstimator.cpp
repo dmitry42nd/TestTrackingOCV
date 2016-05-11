@@ -119,6 +119,55 @@ cv::Point3d getPoint3dCeres(double *p3D)
 }
 
 
+double DynamicTrajectoryEstimator::getScale(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers)
+{
+  cv::Mat line = cv::Mat::zeros(1, 4, CV_64F);
+  line.at<double>(0,3) = 1;
+
+  cv::Mat R;
+  cv::Rodrigues(rvec, R);
+
+  cv::Mat ocT;
+  cv::hconcat(R, t, ocT);
+  cv::vconcat(ocT, line, ocT);
+
+  cv::Mat wcT;
+  poseProvider.getProjMatrForFrame(wcT, frameId);
+  cv::vconcat(wcT, line, wcT);
+  //std::cerr << wcT << std::endl;
+
+  cv::Mat owT = wcT.inv()*ocT;
+  //std::cerr << owT << std::endl;
+
+  std::vector<double> depths;
+  for(auto o : hists_) {
+    auto p = std::find_if(o.cbegin(), o.cend(),
+                          [frameId](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameId; });
+    depths.push_back((*p)->depth);
+  }
+
+  //scale stuff
+  double scale = 0;
+  double cnt = 0;
+  for(int j = 0; j < inliers.rows; j++) {
+    int i = inliers.row(j).at<int>(0, 0);
+    cv::Mat point = cv::Mat(objectPoints[i]);
+    cv::vconcat(point, cv::Mat::ones(1, 1, CV_64F), point);
+    cv::Mat wp = owT * point;
+
+    double s0 = wp.at<double>(0, 2);
+    double s1 = depths[i];
+    if(s1 !=0 && s0!=0) {
+      cnt++;
+      scale += (s1 / s0);
+    }
+  }
+  if(cnt != 0 )
+    scale /= cnt;
+  return scale;
+}
+
+
 void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers,
   std::vector<cv::Point3d> &Xs,
   std::vector<cv::Point2d> &projXs_debug)
@@ -166,8 +215,10 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
     double x = wp.at<double>(0,0);
     double y = wp.at<double>(0,1);
     double z = wp.at<double>(0,2);
-    dataOut << i << ", " << x << ", " << y << ", " << z << std::endl;
-    //dataOut_gt << color<< ", " << x << ", " << y << ", " << depths[i] << std::endl;
+    if(depths[i] > 0) {
+      dataOut << i << ", " << x << ", " << y << ", " << z*scale_ << std::endl;
+      dataOut_gt << color << ", " << x << ", " << y << ", " << depths[i] << std::endl;
+    }
     Xs.push_back(cv::Point3d(x,y,z));
 
     //reprojection error
@@ -177,7 +228,7 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
     cv::Mat a = cv::Mat(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
     cv::Mat b = cv::Mat(cv::Point2d(imagePoints[i].x, imagePoints[i].y));
     double projErr = cv::norm(a-b);
-    std::cout << projErr << std::endl;
+    //std::cout << projErr << std::endl;
     errOut << projErr << std::endl;
     err.push_back(projErr);
   }
@@ -270,7 +321,12 @@ void DynamicTrajectoryEstimator::reset() {
 
 }
 
+char imgn[100];
 void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
+
+  /*sprintf(imgn, "../essmasks/%06d.png", frameIdF);
+  cv::Mat essmask = cv::imread(imgn, CV_8U);*/
+
   std::vector<cv::Point2d>  unPointsF, unPointsL;
   std::vector<cv::Point2d>  pointsF_debug;
   histVector hists;
@@ -285,10 +341,12 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
       auto pF = std::find_if(track->history.cbegin(), track->history.cend(),
                              [frameIdF](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdF; });
 
+      //bool en = essmask.at<uchar>(trunc((*pF)->loc.x), trunc((*pF)->loc.y));
       auto pL = std::find_if(pF, track->history.cend(),
                              [frameIdL](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdL; });
 
-      if (pF != track->history.end() && pL != track->history.end() && std::distance(pF, pL) > HIST_LENGTH) {
+
+      if (/*en &&*/ pF != track->history.end() && pL != track->history.end() && std::distance(pF, pL) > HIST_LENGTH) {
         unPointsF.push_back((*pF)->undist(K, dist));
         unPointsL.push_back((*(pF+HIST_LENGTH) )->undist(K, dist));
         hists.push_back(track->history);
@@ -303,20 +361,21 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
   //std::cout << "got " << unPointsF.size() << " points for frame pair " << frameId << " - " << frameId + SOME_STEP << std::endl;
   if (hists.size() >= MIN_POINTS) {
     cv::Mat mask;
-    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.99, essThr, mask);
-    //filterByMaskDebug(mask, unPointsF, unPointsL, pointsF_debug, hists, 1);
+    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.95, essThr, mask);
+    filterByMaskDebug(mask, unPointsF, unPointsL, pointsF_debug, hists, 1);
     //std::cerr << E << std::endl;
 
     cv::Mat R, t, R1, R2;
     if (E.rows == 3 && E.cols == 3) {
-      cv::recoverPose(E, unPointsF, unPointsL, R, t, 1.0, cv::Point2d(0, 0), mask);
+      cv::Mat mask2;
+      cv::recoverPose(E, unPointsF, unPointsL, R, t, 1.0, cv::Point2d(0, 0), mask2);
       /*cv::decomposeEssentialMat(E, R1, R2, t);
       R2.copyTo(R);
       t = t;*/
 
       //t*=10;
       //std::cerr << mask.type() << ": " << mask.t() << std::endl;
-      filterByMaskDebug(mask, unPointsF, unPointsL, pointsF_debug, hists, 2);
+      filterByMaskDebug(mask2, unPointsF, unPointsL, pointsF_debug, hists, 2);
       if(hists.size() < MIN_POINTS) {
         std::cerr << "algo failed 2\n";
         return;
@@ -505,6 +564,31 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   }
   //std::cout << std::endl;
 
+  //scale stuff
+  scale_ = 0;
+  double cnt = 0;
+  for(auto i = 0; i < scaleCameras.size(); i++) {
+    cv::Mat rvec = cv::Mat(3, 1, CV_64F);
+    rvec.at<double>(0, 0) = scaleCameras[i][0];
+    rvec.at<double>(1, 0) = scaleCameras[i][1];
+    rvec.at<double>(2, 0) = scaleCameras[i][2];
+
+    //std::cout << oldrvec[i].t() << std::endl;
+    //std::cout << rvec.t() << std::endl;
+
+    cv::Mat tvec = cv::Mat(3, 1, CV_64F);
+    tvec.at<double>(0, 0) = scaleCameras[i][3];
+    tvec.at<double>(1, 0) = scaleCameras[i][4];
+    tvec.at<double>(2, 0) = scaleCameras[i][5];
+
+    double s = getScale(rvec, tvec, fids_[i], scaleInliers[i]);
+    if(s > 0) {
+      scale_+=s;
+      cnt++;
+    }
+  }
+  scale_/=cnt;
+  std::cout << "sale_: " << scale_ << std::endl;
   for(auto i = 0; i < scaleCameras.size(); i++) {
     cv::Mat rvec = cv::Mat(3, 1, CV_64F);
     rvec.at<double>(0, 0) = scaleCameras[i][0];
@@ -555,14 +639,9 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   cv::Point3d Vest = (meanXL - meanXF) / (Ldebug_ - Fdebug_);
   //std::cout << V << std::endl;
 
-  scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF, Vest);
+  //scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF, Vest);
 }
 
-//simple test. outlier test,
-void testProgram() {
-
-  return;
-}
 
 #if 0
 static void DynamicTrajectoryEstimator::scaleSolver(std::vector<std::vector<cv::Point2d>> obs,

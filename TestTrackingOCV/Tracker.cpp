@@ -169,7 +169,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat const& img, cv::Mat& dept
     {
       cv::Point2i pt;
       roundCoords(pt, keyPtsFiltered[i].pt, imgSize);
-      double depth = (double)(depthImg.at<ushort>(pt) / 5000.0);
+      double depth = (double)(depthImg.at<char>(pt)*2/1000.0); //mm to meters
       createNewTrack(keyPtsFiltered[i].pt, frameId, keyPtsFiltered[i], cv::Mat(), depth);
       cv::circle(outImg, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
     }
@@ -368,7 +368,7 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
     cv::cvtColor(img, outputFrame, CV_GRAY2BGR);
     if (prevTracks.size() > 0) {
 
-      sprintf(imgn, "../../dynmasks/%06d.png", frameId);
+      sprintf(imgn, "../dynmasks/%06d.png", frameId);
       cv::Mat mask = cv::imread(imgn, CV_8U);
 
       std::vector<cv::Point2f> prevCorners;
@@ -392,34 +392,36 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
             nextCorners[i].y >= 0 && nextCorners[i].y < img.rows) {
           cv::Point2i pt;
           roundCoords(pt, nextCorners[i], imgSize);
-          double depth = (double) (depthImg.at<ushort>(pt)/5000.0);
+          double depth = (double) (depthImg.at<char>(pt)*2/1000.0);
           prevTracks[i]->history.push_back(std::make_shared<TrackedPoint>(nextCorners[i], frameId, depth));
+
+          //roc stuff
+          if(!mask.empty()) {
+            defineTrackType(prevTracks[i]);
+            bool dyn = mask.at<uchar>(trunc(prevTracks[i]->history.back()->loc.y),
+                                      trunc(prevTracks[i]->history.back()->loc.x));
+            errs_mean2.push_back(std::pair<double, bool>(prevTracks[i]->err[0], dyn));
+            errs_max.push_back(std::pair<double, bool>(prevTracks[i]->err[1], dyn));
+            errs_mean3.push_back(std::pair<double, bool>(prevTracks[i]->err[2], dyn));
+          }
 
           cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
           cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
           cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
-
-          /*if (prevTracks[i]->history.size() > 10 && (prevTracks[i]->type == Undef || frameId - prevTracks[i]->defineTypeFrameId > 10))
-            defineTrackType(prevTracks[i]);*/
+          //dirty hack because of KLT
+          //if (prevTracks[i]->history.size() > 20 && (prevTracks[i]->type == Undef || prevTracks[i]->type == Dynamic) && frameId - prevTracks[i]->defineTypeFrameId > 10)
+            //defineTrackType(prevTracks[i]);
 
           curTracks.push_back(prevTracks[i]);
         }
         else
         {
           if (prevTracks[i]->history.size() > 10) {
-            //if (prevTracks[i]->type == Undef)
-            defineTrackType(prevTracks[i]);
+            if (prevTracks[i]->type == Undef)
+              defineTrackType(prevTracks[i]);
             lostTracks.push_back(prevTracks[i]);
             trajArchiver.archiveTrajectorySimple(prevTracks[i]);
 
-            //roc stuff
-            if(!mask.empty()) {
-              bool dyn = mask.at<uchar>(trunc(prevTracks[i]->history.back()->loc.y),
-                                        trunc(prevTracks[i]->history.back()->loc.x));
-              errs_mean2.push_back(std::pair<double, bool>(prevTracks[i]->err[0], dyn));
-              errs_max.push_back(std::pair<double, bool>(prevTracks[i]->err[1], dyn));
-              errs_mean3.push_back(std::pair<double, bool>(prevTracks[i]->err[2], dyn));
-            }
           }
         }
       }
@@ -440,15 +442,28 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
 }
 
 
-void Tracker::generateRocData(std::ofstream &file, int maxThrErr)
+void Tracker::generateRocDataMean3(std::ofstream &file, int maxThrErr) {
+  generateRocData(file, maxThrErr, errs_mean3);
+}
+
+void Tracker::generateRocDataMean2(std::ofstream &file, int maxThrErr) {
+  generateRocData(file, maxThrErr, errs_mean2);
+}
+
+void Tracker::generateRocDataMax(std::ofstream &file, int maxThrErr) {
+  generateRocData(file, maxThrErr, errs_max);
+}
+
+void Tracker::generateRocData(std::ofstream &file, int maxThrErr, std::vector<std::pair<double,bool>> const & errs)
 {
-  for (auto errThr = 0; errThr < maxThrErr; errThr += 5) {
+
+  for (auto errThr = 0; errThr < maxThrErr; errThr+=5) {
     int TP = 0;
     int TN = 0;
     int FP = 0;
     int FN = 0;
 
-    for (std::pair<double, bool> er : errs_mean3) {
+    for (std::pair<double, bool> er : errs) {
       if (er.first > errThr) { // detect as dynamic
         if (er.second) {
           TN++;

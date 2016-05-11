@@ -11,8 +11,9 @@ public:
 	void trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outImg, cv::Mat& depthImg);
 	void drawFinalPointsTypes(int frameId, cv::Mat const& img, cv::Mat &outImg);
 
-	//TODO: analytics?
-	void generateRocData(std::ofstream &file, int maxThrErr);
+	void generateRocDataMean3(std::ofstream &file, int maxThrErr);
+	void generateRocDataMean2(std::ofstream &file, int maxThrErr);
+	void generateRocDataMax(std::ofstream &file, int maxThrErr);
 
 	//orb stuff
 #if 0
@@ -29,6 +30,10 @@ public:
 #endif
 
 protected:
+
+
+	void generateRocData(std::ofstream &file, int maxThrErr, std::vector<std::pair<double,bool>> const & errs);
+
 	typedef std::pair<int, int> Coords;
 
 	std::vector<std::shared_ptr<Track>> prevTracks, curTracks;
