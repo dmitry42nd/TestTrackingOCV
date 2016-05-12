@@ -30,7 +30,7 @@ public:
 #endif
 
 protected:
-
+	std::ofstream errMean3File;
 
 	void generateRocData(std::ofstream &file, int maxThrErr, std::vector<std::pair<double,bool>> const & errs);
 
@@ -43,9 +43,15 @@ protected:
 	cv::Size imgSize;
 
 	const int kltPointsMin   = 200;
-	const double optFlowThr  = 30;
+	/* for dte uno2
+	const double optFlowThr  = 40;
+	const double backProjThr = 5;
+	const double KLTErrThr	 = 0.2;*/
+
+	const double optFlowThr  = 40;
 	const double backProjThr = 25;
 	const double KLTErrThr	 = 0.2;
+
   const int wx = 2;
 	const int wy = 2;
 

@@ -37,9 +37,13 @@ public:
 
 
 protected:
+  char imgn[100];
   double scale_;
-  const double essThr = 0.005;
-  const double pnpThr = 0.02;
+  const double essThr = 0.0005;
+  const double pnpThr = 0.03;
+  //for [255, 295]
+  /*const double essThr = 0.01;
+  const double pnpThr = 0.03;*/
   std::vector<std::shared_ptr<Track>> dynamicTracks;
   std::vector<cv::Point3d> objectPoints;
   std::vector<double *> objectPoints_ceres;
@@ -61,7 +65,7 @@ protected:
   std::vector<cv::Mat> oldtvec;
   histVector hists_;
   void filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
-                         std::vector<cv::Point2d> &v, histVector &its, int i);
+                         std::vector<cv::Point2d> &v, histVector &its, std::vector<int> &trackIds,  int i);
   void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);
 
   //std::vector<cv::Point2d> unPointsF, unPointsL;

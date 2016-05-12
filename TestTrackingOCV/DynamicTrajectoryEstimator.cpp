@@ -157,7 +157,7 @@ double DynamicTrajectoryEstimator::getScale(cv::Mat const& rvec, cv::Mat const& 
 
     double s0 = wp.at<double>(0, 2);
     double s1 = depths[i];
-    if(s1 !=0 && s0!=0) {
+    if(s1 != 0 && s0 != 0) {
       cnt++;
       scale += (s1 / s0);
     }
@@ -256,10 +256,11 @@ void filterByMask(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector
 
 
 void DynamicTrajectoryEstimator::filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
-                                                   std::vector<cv::Point2d> &v, histVector &its, int i_) {
+                                                   std::vector<cv::Point2d> &v, histVector &its, std::vector<int> &trackIds, int i_) {
 
   histVector its__;
   std::vector<cv::Point2d> vF_, vL_, v_;
+  std::vector<int> trackIds_;
 
   for(decltype(vF.size()) i = 0; i < vF.size(); i++) {
     if (mask.at<char>(0, i)) {
@@ -267,6 +268,7 @@ void DynamicTrajectoryEstimator::filterByMaskDebug(cv::Mat const &mask, std::vec
       vL_.push_back(vL[i]);
       v_.push_back(v[i]);
       its__.push_back(its[i]);
+      trackIds_.push_back(trackIds[i]);
     }
   }
 
@@ -274,6 +276,7 @@ void DynamicTrajectoryEstimator::filterByMaskDebug(cv::Mat const &mask, std::vec
   vL_.swap(vL);
   v_.swap(v);
   its__.swap(its);
+  trackIds_.swap(trackIds);
 
   cv::Mat outImg;
   img.copyTo(outImg);
@@ -321,27 +324,31 @@ void DynamicTrajectoryEstimator::reset() {
 
 }
 
-char imgn[100];
 void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
 
-  /*sprintf(imgn, "../essmasks/%06d.png", frameIdF);
+  /*sprintf(imgn, "../essmasks/%03d.png", frameIdF);
+  std::cout << imgn << std::endl;
   cv::Mat essmask = cv::imread(imgn, CV_8U);*/
 
   std::vector<cv::Point2d>  unPointsF, unPointsL;
   std::vector<cv::Point2d>  pointsF_debug;
+  std::vector<int> trackIds;
   histVector hists;
 
+  //sprintf(imgn, "../outProc/%06d.png", frameIdF);
   std::string ImgName = "../outProc/" + std::to_string(frameIdF) + ".bmp";
   img = cv::imread(ImgName, 1);
   cv::Mat outImg;
   img.copyTo(outImg);
 
+  int id = 0;
   for (auto track : dynamicTracks) {
     if (track->history.front()->frameId <= frameIdF && track->history.back()->frameId >= frameIdL) {
       auto pF = std::find_if(track->history.cbegin(), track->history.cend(),
                              [frameIdF](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdF; });
 
-      //bool en = essmask.at<uchar>(trunc((*pF)->loc.x), trunc((*pF)->loc.y));
+      //std::cout << trunc((*pF)->loc.x) << " " <<  trunc((*pF)->loc.y) << std::endl;
+      //bool en = int(essmask.at<uchar>(trunc((*pF)->loc.y), trunc((*pF)->loc.x)));
       auto pL = std::find_if(pF, track->history.cend(),
                              [frameIdL](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdL; });
 
@@ -352,17 +359,19 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
         hists.push_back(track->history);
         cv::circle(outImg, (*pF)->loc, 3, cv::Scalar(0, 0, 200), -1);
         pointsF_debug.push_back((*pF)->loc);
+        trackIds.push_back(id);
       }
     }
     std::string outImgName = std::to_string(frameIdF) + ".bmp";
     cv::imwrite(outImgName, outImg);
+    ++id;
   }
 
   //std::cout << "got " << unPointsF.size() << " points for frame pair " << frameId << " - " << frameId + SOME_STEP << std::endl;
   if (hists.size() >= MIN_POINTS) {
     cv::Mat mask;
-    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.95, essThr, mask);
-    filterByMaskDebug(mask, unPointsF, unPointsL, pointsF_debug, hists, 1);
+    cv::Mat E = cv::findEssentialMat(unPointsF, unPointsL, 1.0, cv::Point2d(0, 0), cv::RANSAC, 0.99, essThr, mask);
+    filterByMaskDebug(mask, unPointsF, unPointsL, pointsF_debug, hists, trackIds, 1);
     //std::cerr << E << std::endl;
 
     cv::Mat R, t, R1, R2;
@@ -375,11 +384,14 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
 
       //t*=10;
       //std::cerr << mask.type() << ": " << mask.t() << std::endl;
-      filterByMaskDebug(mask2, unPointsF, unPointsL, pointsF_debug, hists, 2);
+      filterByMaskDebug(mask2, unPointsF, unPointsL, pointsF_debug, hists, trackIds, 2);
       if(hists.size() < MIN_POINTS) {
         std::cerr << "algo failed 2\n";
         return;
       }
+
+      for(int i = trackIds.size()-1; i >= 0; --i)
+        dynamicTracks.erase(dynamicTracks.begin() + trackIds[i]);
 
       cv::Mat projMatrF = cv::Mat::eye(3,4,CV_64F);
       cv::Mat projMatrL;
@@ -442,7 +454,8 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
       //std::sort(projErrs.begin(), projErrs.end());
 
       objectPoints.clear();
-      //std::cout << projErrs.size() << std::endl;
+      std::cout << projErrs.size() << std::endl;
+      //for(auto i = 0; i < MIN_POINTS; i++) {
       for(auto i = 0; i < points.size(); i++) {
         //int pId = projErrs[i].second;
         int pId = i;
@@ -478,8 +491,9 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   cv::Mat outImg;
   for(int fid = frameIdF; fid < frameIdL; fid++) {
 
+    //sprintf(imgn, "../outProc/%06d.png", fid);
     std::string ImgName = "../outProc/" + std::to_string(fid) + ".bmp";
-    img = cv::imread(ImgName,1);
+    img = cv::imread(ImgName, 1);
     img.copyTo(outImg);
 
     std::vector<cv::Point2f> coords;
@@ -589,6 +603,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   }
   scale_/=cnt;
   std::cout << "sale_: " << scale_ << std::endl;
+
   for(auto i = 0; i < scaleCameras.size(); i++) {
     cv::Mat rvec = cv::Mat(3, 1, CV_64F);
     rvec.at<double>(0, 0) = scaleCameras[i][0];
@@ -623,6 +638,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
       setObjectWorldCoordsOnFrame(rvec, tvec, fids_[i], scaleInliers[i], Xs, projXs);
   }
 
+#if 0
   cv::Point3d meanXF(0,0,0);
   for(auto p : scaleXsF)
     meanXF += p;
@@ -639,7 +655,8 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   cv::Point3d Vest = (meanXL - meanXF) / (Ldebug_ - Fdebug_);
   //std::cout << V << std::endl;
 
-  //scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF, Vest);
+  scaleSolver(scaleObs, scaleCameras, scaleInliers, scaleXsF, Vest);
+#endif
 }
 
 

@@ -12,6 +12,7 @@ Tracker::Tracker(TrajectoryArchiver & trajArchiver, CameraPoseProvider & posePro
   K(poseProvider.K),
   dist(poseProvider.dist)
 {
+  errMean3File.open("errmean3.txt");
   fastDetector = cv::FastFeatureDetector::create(10);
 
   for (int j = 0; j < wy; j++)
@@ -169,7 +170,7 @@ void Tracker::detectPoints(int indX, int indY, cv::Mat const& img, cv::Mat& dept
     {
       cv::Point2i pt;
       roundCoords(pt, keyPtsFiltered[i].pt, imgSize);
-      double depth = (double)(depthImg.at<char>(pt)*2/1000.0); //mm to meters
+      double depth = (double)(depthImg.at<ushort>(pt.y, pt.x)/1000.0); //mm to meters
       createNewTrack(keyPtsFiltered[i].pt, frameId, keyPtsFiltered[i], cv::Mat(), depth);
       cv::circle(outImg, keyPtsFiltered[i].pt, 3, cv::Scalar(0, 0, 255));
     }
@@ -224,7 +225,7 @@ void Tracker::defineTrackType(std::shared_ptr<Track> track) {
 
   if (track->history.size() > 10) {
     #define SAMPLE_SIZE 5
-    #define FIRST_FRAME 3
+    #define FIRST_FRAME 5
     ceres::Problem problem;
 
     std::vector<double *> cameras;
@@ -368,7 +369,7 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
     cv::cvtColor(img, outputFrame, CV_GRAY2BGR);
     if (prevTracks.size() > 0) {
 
-      sprintf(imgn, "../dynmasks/%06d.png", frameId);
+      sprintf(imgn, "../dynmasks/%03d.png", frameId);
       cv::Mat mask = cv::imread(imgn, CV_8U);
 
       std::vector<cv::Point2f> prevCorners;
@@ -392,7 +393,7 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
             nextCorners[i].y >= 0 && nextCorners[i].y < img.rows) {
           cv::Point2i pt;
           roundCoords(pt, nextCorners[i], imgSize);
-          double depth = (double) (depthImg.at<char>(pt)*2/1000.0);
+          double depth = (double) (depthImg.at<ushort>(pt.y, pt.x)/1000.0);
           prevTracks[i]->history.push_back(std::make_shared<TrackedPoint>(nextCorners[i], frameId, depth));
 
           //roc stuff
@@ -400,14 +401,19 @@ void Tracker::trackWithKLT(int frameId, cv::Mat const& img, cv::Mat& outputFrame
             defineTrackType(prevTracks[i]);
             bool dyn = mask.at<uchar>(trunc(prevTracks[i]->history.back()->loc.y),
                                       trunc(prevTracks[i]->history.back()->loc.x));
-            errs_mean2.push_back(std::pair<double, bool>(prevTracks[i]->err[0], dyn));
-            errs_max.push_back(std::pair<double, bool>(prevTracks[i]->err[1], dyn));
-            errs_mean3.push_back(std::pair<double, bool>(prevTracks[i]->err[2], dyn));
+            if(prevTracks[i]->type != Undef) {
+              errs_mean2.push_back(std::pair<double, bool>(prevTracks[i]->err[0], dyn));
+              errs_max.push_back(std::pair<double, bool>(prevTracks[i]->err[1], dyn));
+              errs_mean3.push_back(std::pair<double, bool>(prevTracks[i]->err[2], dyn));
+              errMean3File << frameId << " " << prevTracks[i]->history.back()->loc << " " << prevTracks[i]->err[2] <<
+              " " << dyn << std::endl;
+            }
           }
 
           cv::circle(outputFrame, prevCorners[i], 5, cv::Scalar(250, 0, 250), -1);
           cv::line(outputFrame, prevCorners[i], nextCorners[i], cv::Scalar(0, 250, 0));
           cv::circle(outputFrame, nextCorners[i], 2, cv::Scalar(0, 250, 0), -1);
+
           //dirty hack because of KLT
           //if (prevTracks[i]->history.size() > 20 && (prevTracks[i]->type == Undef || prevTracks[i]->type == Dynamic) && frameId - prevTracks[i]->defineTypeFrameId > 10)
             //defineTrackType(prevTracks[i]);
@@ -457,7 +463,7 @@ void Tracker::generateRocDataMax(std::ofstream &file, int maxThrErr) {
 void Tracker::generateRocData(std::ofstream &file, int maxThrErr, std::vector<std::pair<double,bool>> const & errs)
 {
 
-  for (auto errThr = 0; errThr < maxThrErr; errThr+=5) {
+  for (auto errThr = -10; errThr < maxThrErr; errThr+=5) {
     int TP = 0;
     int TN = 0;
     int FP = 0;

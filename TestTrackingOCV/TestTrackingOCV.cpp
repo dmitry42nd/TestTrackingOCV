@@ -12,6 +12,9 @@
 #include "TestProgram.h"
 
 #define ID_SHIFT 283
+//57
+//283
+//203 uno2
 
 typedef boost::filesystem::path ImgPath;
 
@@ -63,9 +66,8 @@ void getDepthImg(cv::Mat &depthImg, std::vector<ImgPath> const &depthImgsPaths, 
 int main()
 {
 #if 0
-  TestProgram t;
-
-  t.rigid_body_kin();
+  cv::Mat depth = cv::imread("000005.png", CV_LOAD_IMAGE_ANYDEPTH);
+  std::cout << depth.type() << std::endl;
 #else
   cv::FileStorage fs("settings.yaml", cv::FileStorage::READ);
 
@@ -127,11 +129,11 @@ int main()
   fprintf(stderr, "Average fps: %.2fs\n", rgbImgsPaths.size() / totalTime);
 
   std::ofstream trackOut1("../tracktypes/tt-mean3.txt");
-  tracker.generateRocDataMean3(trackOut1, 60);
+  tracker.generateRocDataMean3(trackOut1, 40);
   std::ofstream trackOut2("../tracktypes/tt-mean2.txt");
-  tracker.generateRocDataMean2(trackOut2, 60);
+  tracker.generateRocDataMean2(trackOut2, 40);
   std::ofstream trackOut3("../tracktypes/tt-max.txt");
-  tracker.generateRocDataMax(trackOut3, 60);
+  tracker.generateRocDataMax(trackOut3, 40);
 
   std::cerr << "final tracks types\n";
   for (decltype(rgbImgsPaths.size()) imgId = 0; imgId < rgbImgsPaths.size(); imgId++)
@@ -152,7 +154,7 @@ int main()
   }
 #endif
 
-#if 1
+#if 0
   std::cerr << "build dynamic tracks\n";
 
   std::vector<ImgPath> fImgsPaths;
@@ -161,9 +163,15 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
-  DTE.buildTrack(290, 335);
+  //DTE.buildTrack(210, 245);
+  //DTE.buildTrack(255, 295);
+  DTE.buildTrack(300, 335);
 
-  //DTE.buildTrack(355, 428);
+  //DTE.buildTrack(60, 90);
+  //DTE.buildTrack(60, 90);
+
+  //DTE.buildTrack(290, 335);
+  //DTE.buildTrack(355, 425);
   //DTE.buildTrack(440, 500);
   //kinect601
   //DTE.buildTrack(605, 639);
