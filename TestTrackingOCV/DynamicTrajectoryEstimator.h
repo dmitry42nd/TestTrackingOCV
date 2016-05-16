@@ -38,16 +38,19 @@ public:
 
 protected:
   char imgn[100];
-  double scale_;
-  const double essThr = 0.0005;
-  const double pnpThr = 0.03;
+  double scale_z;
+  double scale_x;
+  double scale_y;
+  const double essThr = 0.003;
+  const double pnpThr = 0.02;
   //for [255, 295]
   /*const double essThr = 0.01;
   const double pnpThr = 0.03;*/
   std::vector<std::shared_ptr<Track>> dynamicTracks;
-  std::vector<cv::Point3d> objectPoints;
+  std::vector<cv::Point3f> objectPoints;
   std::vector<double *> objectPoints_ceres;
-  std::vector<cv::Point2d> imagePoints;
+
+  std::vector<cv::Point2f> imagePoints;
   /*std::vector<cv::Point2d>  unPointsF, unPointsL;
   std::vector<std::vector<std::shared_ptr<TrackedPoint>>::iterator> its;*/
 
@@ -59,11 +62,13 @@ protected:
 
   std::ofstream dataOut;
   std::ofstream dataOut_gt;
-  std::ofstream errOut;
+  std::ofstream errOut1, errOut2;
   cv::Mat img;
   std::vector<cv::Mat> oldrvec;
   std::vector<cv::Mat> oldtvec;
   histVector hists_;
+
+  void renewObjectPoints(std::vector<double *> objectPoints_ceres, std::vector<cv::Point3d> & objectPoints);
   void filterByMaskDebug(cv::Mat const &mask, std::vector<cv::Point2d> &vF, std::vector<cv::Point2d> &vL,
                          std::vector<cv::Point2d> &v, histVector &its, std::vector<int> &trackIds,  int i);
   void getProjectionAndNormCeres(double *camera, double *point, cv::Point2f &pp, cv::Point3f &np);
@@ -76,7 +81,7 @@ protected:
 
   void reset();
 
-  std::vector<std::vector<cv::Point2d>> scaleObs;
+  std::vector<std::vector<cv::Point2f>> scaleObs;
   std::vector<std::vector<double>> scaleCameras;
   std::vector<cv::Mat> scaleInliers;
   std::vector<cv::Point3d> scaleXsF;

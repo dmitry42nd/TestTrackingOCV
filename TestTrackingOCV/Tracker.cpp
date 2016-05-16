@@ -463,7 +463,7 @@ void Tracker::generateRocDataMax(std::ofstream &file, int maxThrErr) {
 void Tracker::generateRocData(std::ofstream &file, int maxThrErr, std::vector<std::pair<double,bool>> const & errs)
 {
 
-  for (auto errThr = -10; errThr < maxThrErr; errThr+=5) {
+  for (auto errThr = 0; errThr < maxThrErr; errThr++) {
     int TP = 0;
     int TN = 0;
     int FP = 0;
@@ -472,16 +472,16 @@ void Tracker::generateRocData(std::ofstream &file, int maxThrErr, std::vector<st
     for (std::pair<double, bool> er : errs) {
       if (er.first > errThr) { // detect as dynamic
         if (er.second) {
-          TN++;
+          TP++;
         } else {
-          FN++;
+          FP++;
         }
       }
       else {
         if (er.second) {
-          FP++;
+          FN++;
         } else {
-          TP++;
+          TN++;
         }
       }
     }

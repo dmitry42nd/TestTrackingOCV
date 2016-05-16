@@ -11,7 +11,7 @@
 #include "DynamicTrajectoryEstimator.h"
 #include "TestProgram.h"
 
-#define ID_SHIFT 283
+#define ID_SHIFT 203
 //57
 //283
 //203 uno2
@@ -95,7 +95,7 @@ int main()
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
 
-#if 1
+#if 0
   cv::Size imgSize = cv::imread(rgbImgsPaths.front().string()).size();
 
   TrajectoryArchiver trajArchiver(pathToSavedTracks);
@@ -154,7 +154,7 @@ int main()
   }
 #endif
 
-#if 0
+#if 1
   std::cerr << "build dynamic tracks\n";
 
   std::vector<ImgPath> fImgsPaths;
@@ -163,9 +163,9 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
-  //DTE.buildTrack(210, 245);
+  DTE.buildTrack(210, 245);
   //DTE.buildTrack(255, 295);
-  DTE.buildTrack(300, 335);
+  //DTE.buildTrack(300, 335);
 
   //DTE.buildTrack(60, 90);
   //DTE.buildTrack(60, 90);

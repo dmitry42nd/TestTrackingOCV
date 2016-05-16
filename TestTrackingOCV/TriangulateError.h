@@ -131,7 +131,7 @@ struct TriangulateError3 {
                                      const double oy) {
     return (new ceres::AutoDiffCostFunction<TriangulateError3, 2, 6, 3>(
         new TriangulateError3(ox, oy)));
-  }
+   }
 
   double ox;
   double oy;

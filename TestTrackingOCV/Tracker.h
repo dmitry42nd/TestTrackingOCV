@@ -43,8 +43,8 @@ protected:
 	cv::Size imgSize;
 
 	const int kltPointsMin   = 200;
-	/* for dte uno2
-	const double optFlowThr  = 40;
+	// for dte uno2
+	/*const double optFlowThr  = 40;
 	const double backProjThr = 5;
 	const double KLTErrThr	 = 0.2;*/
 
