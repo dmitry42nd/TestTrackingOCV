@@ -163,12 +163,12 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
-  DTE.buildTrack(210, 245);
+  //DTE.buildTrack(215, 245);
   //DTE.buildTrack(255, 295);
   //DTE.buildTrack(300, 335);
 
-  //DTE.buildTrack(60, 90);
-  //DTE.buildTrack(60, 90);
+  DTE.buildTrack(60, 89);
+  DTE.buildTrack(60, 89);
 
   //DTE.buildTrack(290, 335);
   //DTE.buildTrack(355, 425);

@@ -21,6 +21,7 @@ DynamicTrajectoryEstimator::DynamicTrajectoryEstimator(CameraPoseProvider& poseP
   dataOut_gt.open("../data4_gt");
   errOut1.open("../data");
   errOut2.open("../data_");
+  trackIds.clear();
 
 }
 
@@ -135,10 +136,6 @@ double DynamicTrajectoryEstimator::getScale(cv::Mat const& rvec, cv::Mat const& 
   cv::Mat wcT;
   poseProvider.getProjMatrForFrame(wcT, frameId);
   cv::vconcat(wcT, line, wcT);
-  //std::cerr << wcT << std::endl;
-
-  cv::Mat owT = wcT.inv()*ocT;
-  //std::cerr << owT << std::endl;
 
   std::vector<double> depths;
   for(auto o : hists_) {
@@ -156,24 +153,27 @@ double DynamicTrajectoryEstimator::getScale(cv::Mat const& rvec, cv::Mat const& 
     point.convertTo(point, CV_64F);
     //std::cout << point.type() << std::endl;
     cv::vconcat(point, cv::Mat::ones(1, 1, CV_64F), point);
-    cv::Mat wp = owT * point;
+    cv::Mat cp = ocT * point;
 
-    double s0 = wp.at<double>(0, 2);
-    double s1 = depths[i];
-    if(s1 != 0 && s0 != 0) {
+    double Z = cp.at<double>(0, 2);
+    double Z_t = depths[i];
+
+    if(Z_t > 0) {
       cnt++;
-      scale += std::fabs(s1 - s0);
+      scale += Z_t/Z;
     }
   }
-  if(cnt != 0 )
+
+  if(cnt > 0 )
     scale /= cnt;
+
   return scale;
 }
 
 
 void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers,
-  std::vector<cv::Point3d> &Xs,
-  std::vector<cv::Point2d> &projXs_debug)
+                                                             std::vector<cv::Point3d> &Xs,
+                                                             std::vector<cv::Point2d> &projXs_debug)
 {
   cv::Mat line = cv::Mat::zeros(1, 4, CV_64F);
   line.at<double>(0,3) = 1;
@@ -188,89 +188,71 @@ void DynamicTrajectoryEstimator::setObjectWorldCoordsOnFrame(cv::Mat const& rvec
   cv::Mat wcT;
   poseProvider.getProjMatrForFrame(wcT, frameId);
   cv::vconcat(wcT, line, wcT);
-  //std::cerr << wcT << std::endl;
 
-  cv::Mat owT = wcT.inv()*ocT;
-  owTs.push_back(owT);
-  //std::cerr << owT << std::endl;
 
   std::vector<double> depths;
-  imagePoints.clear();
+  std::vector<cv::Point2f> obs;
   for(auto o : hists_) {
     auto p = std::find_if(o.cbegin(), o.cend(),
                           [frameId](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameId; });
-    imagePoints.push_back((*p)->undist(K,dist));
+    obs.push_back((*p)->undist(K,dist));
     depths.push_back((*p)->depth);
   }
 
-  double xa,ya,za;
-  double xd,yd,zd;
-  xa=ya=za=xd=yd=zd=0;
   double cnt = 0;
-
-  std::vector<double> err;
+  cv::Point3d cP = cv::Point3d(0,0,0);
+  cv::Point3d cP_t = cv::Point3d(0,0,0);
   for(int j = 0; j < inliers.rows; j++) {
-  //for(int j = 0; j < objectPoints.size(); j++) {
-    int i = inliers.row(j).at<int>(0,0);
+    //for(int j = 0; j < objectPoints.size(); j++) {
+    int i = inliers.row(j).at<int>(0, 0);
     //int i = j;
 
     cv::Mat point = cv::Mat(objectPoints[i]);
     point.convertTo(point, CV_64F);
     cv::vconcat(point, cv::Mat::ones(1,1,CV_64F),point);
-    //std::cout << point << std::endl;
 
-    cv::Mat wp = owT*point;
-    //std::cout << wp.t() << std::endl;
+    cv::Mat cp = ocT*point;
+    cv::Mat wp = wcT.inv()*cp*scale_;
 
-    double x = wp.at<double>(0,0);
-    double y = wp.at<double>(0,1);
-    double z = wp.at<double>(0,2);
+    double x = cp.at<double>(0, 0) / cp.at<double>(0, 2);
+    double y = cp.at<double>(0, 1) / cp.at<double>(0, 2);
 
-    //dpeth
-    cv::Mat pointd = cv::Mat(cv::Point3d(objectPoints[i].x, objectPoints[i].y, depths[i]));
-    pointd.convertTo(pointd, CV_64F);
-    cv::vconcat(pointd, cv::Mat::ones(1,1,CV_64F),pointd);
-    cv::Mat wpd = owT*pointd;
-    xd = x;
-    yd = y;
-    //zd = depths[i];
+    double Xc_t = x*depths[i];
+    double Yc_t = y*depths[i];
+    double Zc_t = depths[i];
+
+    cv::Mat point_t = cv::Mat(cv::Point3d(Xc_t, Yc_t, Zc_t));
+    point_t.convertTo(point, CV_64F);
+    cv::vconcat(point_t, cv::Mat::ones(1,1,CV_64F),point_t);
+    cv::Mat wp_t = wcT.inv()*point_t;
 
     if(depths[i] > 0) {
-      xa += wp.at<double>(0,0);
-      ya += wp.at<double>(0,1);
-      za += wp.at<double>(0,2);
-      zd += depths[i];
-      cnt++;
+      cP += cv::Point3d(wp.at<double>(0,0), wp.at<double>(0,1), wp.at<double>(0,2));
+      cP_t += cv::Point3d(wp_t.at<double>(0,0), wp_t.at<double>(0,1), wp_t.at<double>(0,2));
 
-      dataOut << i << ", " << x << ", " << y << ", " << z-scale_z << std::endl;
-      dataOut_gt << color << ", " << xd << ", " << yd << ", " << depths[i] << std::endl;
-
-      //errOut2 << ((z-scale_z) - depths[i]) << std::endl;
+      dataOut << i << ", " << wp.at<double>(0,0) << ", " << wp.at<double>(0,1) << ", " << wp.at<double>(0,2) << std::endl;
+      dataOut_gt << color << ", " << wp_t.at<double>(0,0) << ", " << wp_t.at<double>(0,1) << ", " << wp_t.at<double>(0,2) << std::endl;
+      /*errOut2 << std::fabs(wp.at<double>(0,2) - wp_t.at<double>(0,2)) << std::endl;*/
+      ++cnt;
     }
 
-    Xs.push_back(cv::Point3d(x,y,z));
+    Xs.push_back(cv::Point3d(cp.at<double>(0,0), cp.at<double>(0,1), cp.at<double>(0,2)));
 
     //reprojection error
-    cv::Mat cp = ocT*point;
-    projXs_debug.push_back(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
-    //std::cout << cp << std::endl;
-    cv::Mat a = cv::Mat(cv::Point2d(cp.at<double>(0,0)/cp.at<double>(0,2), cp.at<double>(0,1)/cp.at<double>(0,2)));
-    cv::Mat b = cv::Mat(cv::Point2d(imagePoints[i].x, imagePoints[i].y));
+    projXs_debug.push_back(cv::Point2d(x, y));
+    cv::Mat a = cv::Mat(cv::Point2d(x, y));
+    cv::Mat b = cv::Mat(cv::Point2d(obs[i].x, obs[i].y));
     double projErr = cv::norm(a-b);
     //std::cout << projErr << std::endl;
     errOut1 << projErr << std::endl;
-    err.push_back(projErr);
   }
 
   if(cnt > 0) {
-    xa /= cnt;
-    ya /= cnt;
-    za /= cnt;
-    zd /= cnt;
-
-    //dataOut << 0 << ", " << xa << ", " << ya << ", " << za*scale_z << std::endl;
-    //dataOut_gt << color << ", " << xa << ", " << ya << ", " << zt << std::endl;
-    errOut2 << ((za - scale_z) - zd) << std::endl;
+    cP /= cnt;
+    cP_t /= cnt;
+    /*dataOut << 1 << ", " << cP.x << ", " << cP.y << ", " << cP.z << std::endl;
+    dataOut_gt << color << ", " << cP_t.x << ", " << cP_t.y << ", " << cP_t.z << std::endl;*/
+    errOut2 << std::fabs(cP.z - cP_t.z) << std::endl;
   }
 
   color++;
@@ -351,8 +333,6 @@ void makeCeresCamera(double* camera, cv::Mat const& R, cv::Mat const& t) {
 }
 
 void DynamicTrajectoryEstimator::reset() {
-  owTs.clear();
-
   oldrvec.clear();
   oldtvec.clear();
   hists_.clear();
@@ -367,13 +347,15 @@ void DynamicTrajectoryEstimator::reset() {
 
 void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
 
+  /*for(int i = trackIds.size()-1; i >= 0; --i)
+    dynamicTracks.erase(dynamicTracks.begin() + trackIds[i]);*/
+
   sprintf(imgn, "../essmasks/%03d.png", frameIdF);
   std::cout << imgn << std::endl;
   cv::Mat essmask = cv::imread(imgn, CV_8U);
 
   std::vector<cv::Point2d>  unPointsF, unPointsL;
   std::vector<cv::Point2d>  pointsF_debug;
-  std::vector<int> trackIds;
   histVector hists;
 
   //sprintf(imgn, "../outProc/%06d.png", frameIdF);
@@ -389,7 +371,9 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
                              [frameIdF](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdF; });
 
       //std::cout << trunc((*pF)->loc.x) << " " <<  trunc((*pF)->loc.y) << std::endl;
-      bool en = int(essmask.at<uchar>(trunc((*pF)->loc.y), trunc((*pF)->loc.x)));
+      bool en = true;
+      if(!essmask.empty())
+        en = essmask.at<uchar>(trunc((*pF)->loc.y), trunc((*pF)->loc.x));
       auto pL = std::find_if(pF, track->history.cend(),
                              [frameIdL](const std::shared_ptr<TrackedPoint> obj) { return obj->frameId == frameIdL; });
 
@@ -431,9 +415,6 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
         std::cerr << "algo failed 2\n";
         return;
       }
-
-      //for(int i = trackIds.size()-1; i >= 0; --i)
-      //  dynamicTracks.erase(dynamicTracks.begin() + trackIds[i]);
 
       cv::Mat projMatrF = cv::Mat::eye(3,4,CV_64F);
       cv::Mat projMatrL;
@@ -503,11 +484,6 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
         int pId = i;
         hists_.push_back(hists[pId]);
         objectPoints.push_back(getPoint3dCeres(points[pId]));
-
-        /*double *objP = new double[3];
-        objP[0] = points[pId][0];
-        objP[1] = points[pId][1];
-        objP[2] = points[pId][2];*/
         objectPoints_ceres.push_back(points[pId]);
       }
 
@@ -528,7 +504,7 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
 }
 
 void DynamicTrajectoryEstimator::renewObjectPoints(std::vector<double *> objectPoints_ceres,
-                                                   std::vector<cv::Point3d>  & objectPoints) {
+                                                   std::vector<cv::Point3f>  & objectPoints) {
   for(auto i = 0; i < objectPoints_ceres.size(); ++i) {
     objectPoints[i] = cv::Point3d(objectPoints_ceres[i][0],objectPoints_ceres[i][1],objectPoints_ceres[i][2]);
     std::cout << objectPoints[i] << std::endl;
@@ -582,12 +558,6 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
     if(imagePoints.size() >= 4)
       cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_32F), cv::Mat::zeros(1, 4, CV_32F),
                          rvec, tvec, false, 100, pnpThr, 0.99, inliers, cv::SOLVEPNP_EPNP);
-      //cv::solvePnP(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec, false, cv::SOLVEPNP_EPNP);
-
-
-    /*else if(imagePoints.size() >= 3)
-      cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_64F), cv::Mat::zeros(1, 4, CV_64F), rvec, tvec,
-                         false, 200, 0.03, 0.98, inliers, cv::SOLVEPNP_DLS);*/
     else
       std::cerr << "algo failed 3\n";
 
@@ -611,7 +581,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
 
       std::cout << inliers.type() << " " << inliers.t() << std::endl;
       for (int j = 0; j < inliers.rows; j++) {
-      //for (int j = 0; j < objectPoints_ceres.size(); j++) {
+        //for (int j = 0; j < objectPoints_ceres.size(); j++) {
         int i = inliers.row(j).at<int>(0, 0);
         //int i = j;
         ceres::CostFunction *cost_function = TriangulateError3::Create(scaleObs.back()[i].x, scaleObs.back()[i].y);
@@ -653,7 +623,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   //std::cout << std::endl;
 
   //scale stuff
-  scale_z = 0;
+  scale_ = 0;
   double cnt = 0;
   for(auto i = 0; i < scaleCameras.size(); i++) {
     cv::Mat rvec = cv::Mat(3, 1, CV_64F);
@@ -671,12 +641,12 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
 
     double s = getScale(rvec, tvec, fids_[i], scaleInliers[i]);
     if(s > 0) {
-      scale_z+=s;
+      scale_+=s;
       cnt++;
     }
   }
-  scale_z/=cnt;
-  std::cout << "sale_: " << scale_z << std::endl;
+  scale_/=cnt;
+  std::cout << "sale_: " << scale_ << std::endl;
 
   for(auto i = 0; i < scaleCameras.size(); i++) {
     cv::Mat rvec = cv::Mat(3, 1, CV_64F);

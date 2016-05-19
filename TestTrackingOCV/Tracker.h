@@ -49,7 +49,7 @@ protected:
 	const double KLTErrThr	 = 0.2;*/
 
 	const double optFlowThr  = 40;
-	const double backProjThr = 25;
+	const double backProjThr = 25; //25 is optimal
 	const double KLTErrThr	 = 0.2;
 
   const int wx = 2;
