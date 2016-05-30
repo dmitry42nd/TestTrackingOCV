@@ -29,7 +29,7 @@ public:
   void finilizeTrack(Track& t);
   void registerTrack(Track& t);
 
-  static void scaleSolver(std::vector<std::vector<cv::Point2d>> obs,
+  static void scaleSolver(std::vector<std::vector<cv::Point2f>> obs,
                    std::vector<std::vector<double>> cameras,
                    std::vector<cv::Mat> inliers,
                    std::vector<cv::Point3d> scaleXsF,

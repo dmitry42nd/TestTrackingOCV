@@ -182,21 +182,6 @@ int main()
   //DTE.buildTrack(725, 765);
   //DTE.buildTrack(788, 826);
   //DTE.buildTrack(863, 895);
-
-  /*for (int imgId = 0; ID_SHIFT + imgId < 654; imgId++)
-  {
-    std::string rgbImgName = fImgsPaths[imgId].string();
-    if (boost::filesystem::exists(rgbImgName))
-    {
-      cv::Mat img = cv::imread(rgbImgName, 0);
-      cv::Mat outImg;
-      cv::cvtColor(img, outImg, CV_GRAY2BGR);
-
-      std::string outFTTImgName = finalTrackTypesFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
-      cv::imwrite(outFTTImgName, outImg);
-    }
-    std::cout << ID_SHIFT + imgId << std::endl;
-  }*/
 #endif
 
 

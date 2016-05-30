@@ -17,10 +17,10 @@ DynamicTrajectoryEstimator::DynamicTrajectoryEstimator(CameraPoseProvider& poseP
 {
   color = 0;
 
-  dataOut.open("../data4");
-  dataOut_gt.open("../data4_gt");
-  errOut1.open("../data");
-  errOut2.open("../data_");
+  dataOut.open("../tracks-algo");
+  dataOut_gt.open("../tracks-real");
+  errOut1.open("../proj-err");
+  errOut2.open("../depth-err");
   trackIds.clear();
 
 }

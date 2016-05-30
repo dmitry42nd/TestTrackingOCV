@@ -93,5 +93,5 @@ void TestProgram::rigid_body_kin() {
   cv::Point3d V_ = cv::Point3d(sc_coef*v_est);
   std::vector<cv::Mat> inliers_; //not used
 
-  DynamicTrajectoryEstimator::scaleSolver(obs_, cameras_, inliers_, XsF_, V_);
+  //DynamicTrajectoryEstimator::scaleSolver(obs_, cameras_, inliers_, XsF_, V_);
 }

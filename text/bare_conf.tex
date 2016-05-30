@@ -414,7 +414,7 @@
 \section{Теоретические основы}
 Будем считать камеру калиброванной, так что матрица ее внутренних параметров $\mathtt{K}$ известна. Каждая точка $i$ порождает трек проекций $\{ {\bf x}_{i,j} \}$ в моменты $j = t_{i,1}, \ldots, t_{i,n_i}$, ${\bf x}_{i,j} \in \mathbb{R}^2$. 
 
-Положение камеры задается матрицей поворота $\mathtt{R} \in SO(3)$ и вектором переноса ${\bf t} \in \mathbb{R}^3$.  Определим вектор параметров $\theta,$ по которому могут быть построены $\mathtt{R}, {\bf t}$, как описано в \cite{}. Отображение проектирования $\pi(\theta, {\bf X})$ для точки ${\bf X} \in \mathbb{R}^3$ на камеру с положением $\theta$ при условии единичной матрицы $\mathtt{K}$ записывается как
+Положение камеры задается матрицей поворота $\mathtt{R} \in SO(3)$ и вектором переноса ${\bf t} \in \mathbb{R}^3$.  Определим вектор параметров $\theta,$ по которому могут быть построены $\mathtt{R}, {\bf t}$, как описано в \cite{Ziss}. Отображение проектирования $\pi(\theta, {\bf X})$ для точки ${\bf X} \in \mathbb{R}^3$ на камеру с положением $\theta$ при условии единичной матрицы $\mathtt{K}$ записывается как
 \begin{equation}\label{eq:proj_fun}
 \pi(\theta, {\bf X}) = 
 \frac{1}{{\bf r}_3^T {\bf X} + t_3}
@@ -669,8 +669,6 @@ The authors would like to thank...
 \bibliographystyle{IEEEtran}
 % argument is your BibTeX string definitions and bibliography database(s)
 \bibliography{dslam}
-
-
 
 
 % that's all folks
