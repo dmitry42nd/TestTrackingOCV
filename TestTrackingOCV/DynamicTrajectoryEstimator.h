@@ -22,7 +22,7 @@ public:
 
   double getScale(cv::Mat const& rvec, cv::Mat const& t, int frameId, cv::Mat const& inliers);
 
-  void buildTrack(int frameIdF, int frameIdL);
+  void buildTrack(int frameIdF, int frameIdL, bool duo);
   void loadOnlyDynamicsTracksFromFile(std::string &pathToAllTracks);
 
   void updateEstimates(int frameId);
@@ -39,9 +39,15 @@ public:
 protected:
   char imgn[100];
   double scale_;
+  //cv::Point3d scale_;
   std::vector<int> trackIds;
-  const double essThr = 0.003;
-  const double pnpThr = 0.05;
+  const double essThr = 0.002;
+  const double pnpThr = 0.03;
+  //const double essThr = 0.001; //good for 1st
+  //const double pnpThr = 0.03;
+
+  //const double essThr = 0.002; //good for 2nd
+  //const double pnpThr = 0.05;
   //for [255, 295]
   /*const double essThr = 0.01;
   const double pnpThr = 0.03;*/

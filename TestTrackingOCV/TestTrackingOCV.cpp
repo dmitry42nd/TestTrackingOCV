@@ -12,7 +12,8 @@
 #include "TestProgram.h"
 
 #define ID_SHIFT 203
-//57
+//82 duo1
+//57 duo2
 //283
 //203 uno2
 
@@ -95,7 +96,7 @@ int main()
 
   CameraPoseProviderTXT poseProvider(pathToCameraPoses);
 
-#if 0
+#if 1
   cv::Size imgSize = cv::imread(rgbImgsPaths.front().string()).size();
 
   TrajectoryArchiver trajArchiver(pathToSavedTracks);
@@ -117,7 +118,7 @@ int main()
 
       tracker.trackWithKLT(ID_SHIFT + imgId, img, outImg, depthImg);
 
-      std::string outImgName = outFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
+      std::string outImgName = outFld + std::to_string(ID_SHIFT + imgId) + ".png";
       cv::imwrite(outImgName, outImg);
     }
     std::cerr << ID_SHIFT + imgId << std::endl;
@@ -147,7 +148,7 @@ int main()
 
       tracker.drawFinalPointsTypes(ID_SHIFT + imgId, img, outImg);
 
-      std::string outFTTImgName = finalTrackTypesFld + std::to_string(ID_SHIFT + imgId) + ".bmp";
+      std::string outFTTImgName = finalTrackTypesFld + std::to_string(ID_SHIFT + imgId) + ".png";
       cv::imwrite(outFTTImgName, outImg);
     }
     std::cerr << ID_SHIFT + imgId << std::endl;
@@ -163,12 +164,14 @@ int main()
 
   DynamicTrajectoryEstimator DTE(poseProvider);
   DTE.loadOnlyDynamicsTracksFromFile(pathToSavedTracks);
-  //DTE.buildTrack(215, 245);
-  //DTE.buildTrack(255, 295);
+  //DTE.buildTrack(208, 248, false);
+  DTE.buildTrack(255, 295, false);
   //DTE.buildTrack(300, 335);
 
-  DTE.buildTrack(60, 89);
-  DTE.buildTrack(60, 89);
+  //DTE.buildTrack(90, 130, false);
+  //DTE.buildTrack(90, 130, true);
+  //DTE.buildTrack(60, 90, false);
+  //DTE.buildTrack(60, 90, true);
 
   //DTE.buildTrack(290, 335);
   //DTE.buildTrack(355, 425);

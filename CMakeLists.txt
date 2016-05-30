@@ -4,7 +4,7 @@ project(TestTrackingOCV)
 find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
 
-find_package(OpenCV 3 REQUIRED)
+find_package(OpenCV 3.1 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fpermissive")

@@ -308,7 +308,7 @@ void DynamicTrajectoryEstimator::filterByMaskDebug(cv::Mat const &mask, std::vec
     cv::circle(outImg, p, 3, cv::Scalar(0, 0, 200), -1);
   }
 
-  std::string outImgName = std::to_string(i_) + ".bmp";
+  std::string outImgName = std::to_string(i_) + ".png";
   cv::imwrite(outImgName, outImg);
 
 }
@@ -347,8 +347,8 @@ void DynamicTrajectoryEstimator::reset() {
 
 void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
 
-  /*for(int i = trackIds.size()-1; i >= 0; --i)
-    dynamicTracks.erase(dynamicTracks.begin() + trackIds[i]);*/
+  for(int i = trackIds.size()-1; i >= 0; --i)
+    dynamicTracks.erase(dynamicTracks.begin() + trackIds[i]);
 
   sprintf(imgn, "../essmasks/%03d.png", frameIdF);
   std::cout << imgn << std::endl;
@@ -359,7 +359,7 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
   histVector hists;
 
   //sprintf(imgn, "../outProc/%06d.png", frameIdF);
-  std::string ImgName = "../outProc/" + std::to_string(frameIdF) + ".bmp";
+  std::string ImgName = "../outProc/" + std::to_string(frameIdF) + ".png";
   img = cv::imread(ImgName, 1);
   cv::Mat outImg;
   img.copyTo(outImg);
@@ -389,7 +389,7 @@ void DynamicTrajectoryEstimator::block1(int frameIdF, int frameIdL) {
         std::cout << "added: " << unPointsF.back() << " " << unPointsF.back() << std::endl;      }
     }
 
-    std::string outImgName = std::to_string(frameIdF) + ".bmp";
+    std::string outImgName = std::to_string(frameIdF) + ".png";
     cv::imwrite(outImgName, outImg);
     ++id;
   }
@@ -514,7 +514,7 @@ void DynamicTrajectoryEstimator::renewObjectPoints(std::vector<double *> objectP
 }
 
 
-void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
+void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL, bool duo) {
   reset();
 
   block1(frameIdF, frameIdL);
@@ -531,7 +531,12 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
   for(int fid = frameIdF; fid < frameIdL; fid++) {
 
     //sprintf(imgn, "../outProc/%06d.png", fid);
-    std::string ImgName = "../outProc/" + std::to_string(fid) + ".bmp";
+    std::string ImgName;
+    if(duo)
+      ImgName = "dout/" + std::to_string(fid) + ".png";
+    else
+      ImgName = "../outProc/" + std::to_string(fid) + ".png";
+
     img = cv::imread(ImgName, 1);
     img.copyTo(outImg);
 
@@ -555,7 +560,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
     }*/
 
     cv::Mat rvec, tvec, inliers;
-    if(imagePoints.size() >= 4)
+    if(true || imagePoints.size() >= 4)
       cv::solvePnPRansac(objectPoints, imagePoints, cv::Mat::eye(3, 3, CV_32F), cv::Mat::zeros(1, 4, CV_32F),
                          rvec, tvec, false, 100, pnpThr, 0.99, inliers, cv::SOLVEPNP_EPNP);
     else
@@ -565,7 +570,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
       oldrvec.push_back(rvec); //just for debug
       oldtvec.push_back(tvec);
 
-      std::vector<double> camera;
+      std::vector<double> camera; //not camera exactly. R,t: o -> c_i
       for (auto i = 0; i < 3; i++) {
         camera.push_back(rvec.at<double>(i, 0));
       }
@@ -587,7 +592,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
         ceres::CostFunction *cost_function = TriangulateError3::Create(scaleObs.back()[i].x, scaleObs.back()[i].y);
         mainProblem.AddResidualBlock(cost_function, NULL, scaleCameras.back().data(), objectPoints_ceres[i]);
 
-        if(i == 7)
+        if(duo)
           cv::circle(outImg, coords[i], 3, cv::Scalar(200, 0, 0), -1);
         else
           cv::circle(outImg, coords[i], 3, cv::Scalar(0, 0, 200), -1);
@@ -602,7 +607,7 @@ void DynamicTrajectoryEstimator::buildTrack(int frameIdF, int frameIdL) {
       std::cout << "no inliers in solveRansac " << fid << "\n";
     }
 
-    std::string outImgName =  "dout/" + std::to_string(fid) + ".bmp";
+    std::string outImgName =  "dout/" + std::to_string(fid) + ".png";
     cv::imwrite(outImgName, outImg);
   }
 
